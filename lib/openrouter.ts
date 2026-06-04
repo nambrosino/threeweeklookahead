@@ -1,5 +1,5 @@
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
-const MODEL = 'google/gemini-2.0-flash:free';
+const MODEL = 'meta-llama/llama-3.2-11b-vision-instruct:free';
 
 export async function visionComplete(prompt: string, base64Image: string, mimeType: string): Promise<string> {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
