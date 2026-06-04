@@ -48,10 +48,14 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
         .single();
       setUpload(up);
 
+      if (!up?.project_id) return;
+
+      // Load ALL published activities for this project, not just this upload
       const { data } = await supabase
         .from('activities')
-        .select('*')
-        .eq('upload_id', uploadId);
+        .select('*, uploads!inner(project_id, status)')
+        .eq('uploads.project_id', up.project_id)
+        .eq('uploads.status', 'published');
       if (data) setActivities(data);
     }
     load();
