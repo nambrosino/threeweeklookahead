@@ -1,5 +1,5 @@
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
-const MODEL = 'google/gemma-4-31b-it:free';
+const MODEL = 'moonshotai/kimi-k2.6:free';
 
 export async function visionComplete(prompt: string, base64Image: string, mimeType: string): Promise<string> {
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
