@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
+async function deleteUpload(id: string) {
+  await supabase.from('activities').delete().eq('upload_id', id);
+  await supabase.from('uploads').delete().eq('id', id);
+}
+
 interface Upload {
   id: string;
   week_start_date: string | null;
@@ -16,6 +21,15 @@ interface Upload {
 export default function Home() {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this upload and all its activities? This cannot be undone.')) return;
+    setDeleting(id);
+    await deleteUpload(id);
+    setUploads(prev => prev.filter(u => u.id !== id));
+    setDeleting(null);
+  }
 
   useEffect(() => {
     supabase
@@ -109,6 +123,13 @@ export default function Home() {
                       Review
                     </Link>
                   )}
+                  <button
+                    onClick={() => handleDelete(u.id)}
+                    disabled={deleting === u.id}
+                    className="text-xs px-3 py-1 bg-gray-800 hover:bg-red-900 border border-gray-600 hover:border-red-700 rounded text-gray-400 hover:text-red-300 transition-colors"
+                  >
+                    {deleting === u.id ? '…' : 'Delete'}
+                  </button>
                   {u.status === 'published' && (
                     <Link
                       href={`/board/${u.id}`}
