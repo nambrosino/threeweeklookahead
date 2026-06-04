@@ -71,7 +71,8 @@ Extract all trade color legend entries from this photo.`,
 
     return NextResponse.json({ ok: true, count: parsed.trades?.length ?? 0 });
   } catch (err) {
-    console.error('Legend extraction failed:', err);
-    return NextResponse.json({ error: 'Extraction failed' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Legend extraction failed:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
