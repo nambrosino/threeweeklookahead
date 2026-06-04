@@ -102,26 +102,19 @@ export default function UploadPage() {
       }
 
       if (photoType === 'legend') {
-        const { data: upload } = await supabase
-          .from('uploads')
-          .insert({
-            project_id: projectId,
-            photo_urls: urls,
-            board_format: 'daily' as const,
-            status: 'pending' as const,
-          })
-          .select()
-          .single();
+        // Fire-and-forget legend extraction directly from the client using the public URLs
+        fetch('/api/extract-legend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, photoUrls: urls }),
+        }).catch(console.error);
 
-        if (upload) {
-          // Fire-and-forget — don't await, redirect immediately
-          fetch('/api/extract-legend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uploadId: upload.id, projectId, photoUrls: urls }),
-          }).catch(console.error);
-        }
-        router.push('/upload?legendDone=1');
+        setUploading(false);
+        setHasLegend(true);
+        setFiles([]);
+        setPhotoType('board');
+        setError('');
+        alert('Legend uploaded! Now upload your board photos.');
         return;
       }
 
