@@ -89,10 +89,12 @@ export default function UploadPage() {
       for (const fp of files) {
         const ext = fp.file.name.split('.').pop() ?? 'jpg';
         const path = `${projectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
+        console.log('Uploading to storage:', path);
+        const { error: uploadErr, data: uploadData } = await supabase.storage
           .from('pullplan-photos')
-          .upload(path, fp.file);
-        if (uploadErr) throw uploadErr;
+          .upload(path, fp.file, { upsert: true });
+        console.log('Storage result:', uploadData, uploadErr);
+        if (uploadErr) throw new Error(`Storage upload failed: ${uploadErr.message}`);
         const { data: urlData } = supabase.storage
           .from('pullplan-photos')
           .getPublicUrl(path);
