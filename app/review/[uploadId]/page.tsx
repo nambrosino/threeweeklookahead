@@ -16,6 +16,7 @@ export default function ReviewPage({ params }: { params: Promise<{ uploadId: str
 
   const [activities, setActivities] = useState<ReviewActivity[]>([]);
   const [uploadDate, setUploadDate] = useState('');
+  const [uploadStatus, setUploadStatus] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [toast, setToast] = useState('');
@@ -24,11 +25,12 @@ export default function ReviewPage({ params }: { params: Promise<{ uploadId: str
     async function load() {
       const { data: upload } = await supabase
         .from('uploads')
-        .select('uploaded_at')
+        .select('uploaded_at, status')
         .eq('id', uploadId)
         .single();
       if (upload) {
         setUploadDate(new Date(upload.uploaded_at).toLocaleDateString());
+        setUploadStatus(upload.status);
       }
 
       const { data } = await supabase
@@ -42,6 +44,31 @@ export default function ReviewPage({ params }: { params: Promise<{ uploadId: str
     }
     load();
   }, [uploadId]);
+
+  // Poll while extraction is running
+  useEffect(() => {
+    if (uploadStatus !== 'pending' && uploadStatus !== 'extracting') return;
+    const interval = setInterval(async () => {
+      const { data: upload } = await supabase
+        .from('uploads')
+        .select('status')
+        .eq('id', uploadId)
+        .single();
+      if (upload) setUploadStatus(upload.status);
+
+      const { data } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('upload_id', uploadId)
+        .order('needs_review', { ascending: false });
+      if (data) setActivities(data);
+
+      if (upload?.status === 'review' || upload?.status === 'published') {
+        clearInterval(interval);
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [uploadId, uploadStatus]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -114,6 +141,11 @@ export default function ReviewPage({ params }: { params: Promise<{ uploadId: str
               {uploadDate} — {needsReviewCount > 0 ? `${needsReviewCount} cards need review` : 'All reviewed'}
             </p>
           </div>
+          {(uploadStatus === 'pending' || uploadStatus === 'extracting') && (
+            <div className="flex items-center gap-2 bg-yellow-900/40 border border-yellow-600 rounded px-3 py-1.5 text-yellow-300 text-xs animate-pulse">
+              🔍 Reading board… cards will appear shortly
+            </div>
+          )}
           <button
             onClick={publishBoard}
             disabled={!canPublish || publishing}

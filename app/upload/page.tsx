@@ -100,37 +100,30 @@ export default function UploadPage() {
       }
 
       if (photoType === 'legend') {
-        // For legend photos, we just record them and extract trade colors
-        // This is a simplified flow — in production, run legend extraction separately
-        await supabase.from('trade_legends').delete().eq('project_id', projectId);
-        // Upsert a placeholder — actual extraction of legend colors is done via the extract route
-        const uploadRecord = {
-          project_id: projectId,
-          photo_urls: urls,
-          board_format: 'daily' as const,
-          status: 'pending' as const,
-        };
         const { data: upload } = await supabase
           .from('uploads')
-          .insert(uploadRecord)
+          .insert({
+            project_id: projectId,
+            photo_urls: urls,
+            board_format: 'daily' as const,
+            status: 'pending' as const,
+          })
           .select()
           .single();
 
         if (upload) {
-          setUploading(false);
-          setExtracting(true);
-          // Run legend extraction (re-uses the same pipeline but marks as legend)
-          await fetch('/api/extract-legend', {
+          // Fire-and-forget — don't await, redirect immediately
+          fetch('/api/extract-legend', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ uploadId: upload.id, projectId, photoUrls: urls }),
-          });
+          }).catch(console.error);
         }
         router.push('/upload?legendDone=1');
         return;
       }
 
-      // Board photos
+      // Board photos — create upload record then redirect immediately
       const { data: upload, error: insertErr } = await supabase
         .from('uploads')
         .insert({
@@ -145,17 +138,14 @@ export default function UploadPage() {
 
       if (insertErr || !upload) throw insertErr ?? new Error('Failed to create upload');
 
-      setUploading(false);
-      setExtracting(true);
-
-      const res = await fetch('/api/extract', {
+      // Fire extraction without awaiting — review page will poll for status
+      fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uploadId: upload.id, projectId }),
-      });
+      }).catch(console.error);
 
-      if (!res.ok) throw new Error('Extraction API error');
-
+      setUploading(false);
       router.push(`/review/${upload.id}`);
     } catch (err) {
       console.error(err);
