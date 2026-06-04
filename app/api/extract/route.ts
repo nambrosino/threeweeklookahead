@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import { visionComplete } from '@/lib/openrouter';
 import { TRADE_COLOR_MAP_PROMPT } from '@/lib/constants';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM_PROMPT = `You are a construction schedule reader analyzing a pull plan board photo.
 
@@ -64,28 +62,6 @@ interface ExtractedActivity {
   confidence: number;
 }
 
-async function extractFromPhoto(
-  base64Data: string,
-  mediaType: string,
-  colorMapString: string
-): Promise<{ board_format: string; activities: ExtractedActivity[] }> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-  const result = await model.generateContent([
-    `${SYSTEM_PROMPT}\n\n${colorMapString}\n\nExtract all task cards from this pull plan board.`,
-    {
-      inlineData: {
-        mimeType: mediaType,
-        data: base64Data,
-      },
-    },
-  ]);
-
-  const text = result.response.text();
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  return JSON.parse(cleaned);
-}
-
 export async function POST(req: NextRequest) {
   const { uploadId, projectId } = await req.json();
 
@@ -95,7 +71,6 @@ export async function POST(req: NextRequest) {
 
   await supabase.from('uploads').update({ status: 'extracting' }).eq('id', uploadId);
 
-  // Load trade legend
   const { data: legendRows } = await supabase
     .from('trade_legends')
     .select('*')
@@ -129,9 +104,12 @@ export async function POST(req: NextRequest) {
       const base64Data = Buffer.from(arrayBuf).toString('base64');
       const mediaType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
 
-      const extracted = await extractFromPhoto(base64Data, mediaType, colorMapString);
+      const prompt = `${SYSTEM_PROMPT}\n\n${colorMapString}\n\nExtract all task cards from this pull plan board.`;
+      const text = await visionComplete(prompt, base64Data, mediaType);
+      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const extracted = JSON.parse(cleaned);
 
-      for (const act of extracted.activities) {
+      for (const act of (extracted.activities as ExtractedActivity[])) {
         const needsReview =
           act.confidence < 0.8 || act.crew_size === null || act.duration_days === null;
 
@@ -158,7 +136,8 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (err) {
-      console.error('Extraction failed for photo:', photoUrl, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('Extraction failed for photo:', photoUrl, msg);
       allActivities.push({
         upload_id: uploadId,
         project_id: projectId,
@@ -168,7 +147,7 @@ export async function POST(req: NextRequest) {
         day_key: null,
         week_of: null,
         trade: 'doc',
-        task_name: '[Extraction failed — please review photo]',
+        task_name: `[Extraction failed: ${msg.substring(0, 80)}]`,
         predecessor: null,
         crew_size: null,
         duration_days: null,
@@ -188,6 +167,5 @@ export async function POST(req: NextRequest) {
   }
 
   await supabase.from('uploads').update({ status: 'review' }).eq('id', uploadId);
-
   return NextResponse.json({ ok: true, count: allActivities.length });
 }

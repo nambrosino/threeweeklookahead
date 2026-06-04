@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import { visionComplete } from '@/lib/openrouter';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   const { uploadId, projectId, photoUrls } = await req.json();
@@ -22,10 +20,7 @@ export async function POST(req: NextRequest) {
     const base64Data = Buffer.from(arrayBuf).toString('base64');
     const mediaType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-    const result = await model.generateContent([
-      `You are reading the legend/key section of a construction pull plan board.
+    const prompt = `You are reading the legend/key section of a construction pull plan board.
 Extract each trade entry showing a color swatch paired with a trade name and company.
 
 Return ONLY valid JSON, no markdown:
@@ -40,16 +35,9 @@ Return ONLY valid JSON, no markdown:
   ]
 }
 
-Extract all trade color legend entries from this photo.`,
-      {
-        inlineData: {
-          mimeType: mediaType,
-          data: base64Data,
-        },
-      },
-    ]);
+Extract all trade color legend entries from this photo.`;
 
-    const text = result.response.text();
+    const text = await visionComplete(prompt, base64Data, mediaType);
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(cleaned);
 
