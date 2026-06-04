@@ -9,12 +9,12 @@ function getOpenRouterKey(): string {
 }
 
 async function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
-  // Resize to max 1600px to reduce token usage
+  // Resize to max 2400px — keep resolution high for handwritten text
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 1600;
+      const MAX = 2400;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -79,17 +79,42 @@ Return ONLY valid JSON, no markdown:
 
 const BOARD_PROMPT = `You are a construction schedule reader analyzing a pull plan board photo.
 
+CRITICAL: Extract EVERY sticky note / colored card visible on the board. Do not skip any.
+
 The board has ROWS on the left side labeled with area/level combinations:
-- AREA A (Roof), AREA A (3rd Floor), AREA A (2nd Floor), AREA A (1st Floor)
-- AREA B (Roof), AREA B (3rd Floor), AREA B (2nd Floor), AREA B (1st Floor)
-- AREA C (Lower), AREA C (Upper)
-- AREA D / SITEWORK / CMU SHAFTS
+- AREA A (Roof) = area:"A", area_sub:"roof", level:3
+- AREA A (3rd Floor) = area:"A", area_sub:"3rd", level:2
+- AREA A (2nd Floor) = area:"A", area_sub:"2nd", level:1
+- AREA A (1st Floor) = area:"A", area_sub:"1st", level:0
+- AREA B (Roof) = area:"B", area_sub:"roof", level:3
+- AREA B (3rd Floor) = area:"B", area_sub:"3rd", level:2
+- AREA B (2nd Floor) = area:"B", area_sub:"2nd", level:1
+- AREA B (1st Floor) = area:"B", area_sub:"1st", level:0
+- AREA C (Lower) = area:"C", area_sub:"lower", level:0
+- AREA C (Upper) = area:"C", area_sub:"upper", level:1
+- AREA D = area:"D", area_sub:null, level:0
+- SITEWORK = area:"sitework", area_sub:null, level:0
+- CMU SHAFTS = area:"cmu", area_sub:null, level:0
 
-Columns are days (MON 5/25, TUES 5/26…) or weeks (WEEK OF: 6/22…).
-X marks = weekends, ignore. Pink line = today, ignore.
+If area labels are not visible on the left (continuation panel), use your best judgment based on row position.
 
-Return ONLY valid JSON, no markdown:
-{"board_format":"daily","activities":[{"area":"A","area_sub":"roof","level":3,"day_key":"mon","week_of":null,"trade":"trade_key","task_name":"text","predecessor":"text or null","crew_size":2,"duration_days":1,"duration_text":null,"is_milestone":false,"confidence":0.9}]}`;
+Columns are days (MON 5/25, TUES 5/26…) — use day_key: "mon","tue","wed","thu","fri","sat"
+OR weeks (WEEK OF: 6/22…) — use week_of: "2025-06-22" ISO format.
+
+X marks in cells = non-working days, ignore them.
+Pink vertical line = today marker, ignore it.
+"FOREMAN'S MEETING" text = ignore it.
+"MEMORIAL DAY" text = ignore it.
+
+For each sticky note/card extract:
+- task_name: the main text on the card (top line)
+- predecessor: any text indicating what must happen first (often "__ complete" or "after __")
+- crew_size: the number before the | or / symbol (e.g. "2|6" means crew_size=2)
+- duration_days: the number after the | or / symbol (e.g. "2|6" means duration=6 days, "1 day" means 1)
+- trade: match the card color to the trade color map
+
+Return ONLY valid JSON, no markdown, no explanation:
+{"board_format":"daily","activities":[{"area":"A","area_sub":"roof","level":3,"day_key":"mon","week_of":null,"trade":"trade_key","task_name":"text","predecessor":null,"crew_size":2,"duration_days":6,"duration_text":null,"is_milestone":false,"confidence":0.85}]}`;
 
 export async function extractBoardFromFile(
   file: File,
