@@ -89,6 +89,10 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
       const uploadWeekMap: Record<string, string | null> = {};
       for (const u of uploads) uploadWeekMap[u.id] = u.week_start_date;
 
+      const now = new Date();
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
       const dated: DatedActivity[] = acts.map(act => {
         let resolved_date = '';
         if (act.week_of) {
@@ -96,6 +100,14 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
         } else if (act.day_key && uploadWeekMap[act.upload_id]) {
           const weekStart = uploadWeekMap[act.upload_id]!;
           resolved_date = addDays(weekStart, DAY_OFFSETS[act.day_key] ?? 0);
+        }
+        // If date is more than 6 months in the past, it's likely a wrong year — bump forward 1 year
+        if (resolved_date) {
+          const d = new Date(resolved_date + 'T00:00:00');
+          if (d < sixMonthsAgo) {
+            d.setFullYear(d.getFullYear() + 1);
+            resolved_date = d.toISOString().slice(0, 10);
+          }
         }
         return { ...act, resolved_date };
       }).filter(a => a.resolved_date);

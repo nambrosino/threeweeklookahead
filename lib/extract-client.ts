@@ -77,7 +77,10 @@ Return ONLY valid JSON, no markdown:
   return parsed.trades ?? [];
 }
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 const BOARD_PROMPT = `You are a construction schedule reader analyzing a pull plan board photo.
+The current year is ${CURRENT_YEAR}. Use this year for all dates unless clearly labeled otherwise.
 
 CRITICAL: Extract EVERY sticky note / colored card visible on the board. Do not skip any.
 
