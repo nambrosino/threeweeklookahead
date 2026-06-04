@@ -176,6 +176,18 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
           >
             Edit
           </a>
+          <a
+            href="/upload"
+            className="px-3 py-1 rounded text-xs bg-blue-700 hover:bg-blue-600 border border-blue-500 text-white font-semibold"
+          >
+            + Upload More
+          </a>
+          <a
+            href="/"
+            className="px-3 py-1 rounded text-xs bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700"
+          >
+            Home
+          </a>
         </div>
       </div>
 

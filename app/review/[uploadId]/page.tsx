@@ -146,6 +146,14 @@ export default function ReviewPage({ params }: { params: Promise<{ uploadId: str
               🔍 Reading board… cards will appear shortly
             </div>
           )}
+          <a href="/upload"
+            className="px-4 py-2 rounded-lg text-sm bg-blue-700 hover:bg-blue-600 border border-blue-500 text-white font-semibold">
+            + Upload More
+          </a>
+          <a href="/"
+            className="px-4 py-2 rounded-lg text-sm bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700">
+            Home
+          </a>
           <button
             onClick={publishBoard}
             disabled={!canPublish || publishing}
