@@ -1,65 +1,128 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+
+interface Upload {
+  id: string;
+  week_start_date: string | null;
+  uploaded_at: string;
+  status: string;
+  project_id: string;
+  projects: { name: string } | { name: string }[] | null;
+}
 
 export default function Home() {
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from('uploads')
+      .select('id, week_start_date, uploaded_at, status, project_id, projects(name)')
+      .order('uploaded_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (data) setUploads(data as Upload[]);
+        setLoading(false);
+      });
+  }, []);
+
+  const statusColor: Record<string, string> = {
+    pending:    'bg-gray-700 text-gray-300',
+    extracting: 'bg-yellow-800 text-yellow-200',
+    review:     'bg-blue-800 text-blue-200',
+    published:  'bg-green-800 text-green-200',
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-gray-950 text-gray-100 p-6">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">DOC Pull Plan</h1>
+            <p className="text-gray-400 text-sm">Construction schedule management</p>
+          </div>
+          <div className="flex gap-3">
+            <Link
+              href="/projects/new"
+              className="px-4 py-2 rounded bg-gray-800 border border-gray-600 text-sm text-gray-300 hover:bg-gray-700"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              + New Project
+            </Link>
+            <Link
+              href="/upload"
+              className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Upload Photos
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {loading ? (
+          <p className="text-gray-500">Loading…</p>
+        ) : uploads.length === 0 ? (
+          <div className="text-center py-16 text-gray-600">
+            <div className="text-5xl mb-4">📋</div>
+            <p className="text-lg font-medium text-gray-400">No boards yet</p>
+            <p className="text-sm mt-1">Upload your first pull plan photo to get started</p>
+            <Link
+              href="/upload"
+              className="inline-block mt-4 px-6 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold"
+            >
+              Upload Photos
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {uploads.map(u => (
+              <div
+                key={u.id}
+                className="bg-gray-900 border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-4"
+              >
+                <div>
+                  <div className="font-semibold text-white text-sm">
+                    {(Array.isArray(u.projects) ? u.projects[0]?.name : u.projects?.name) ?? 'Unknown project'}
+                    {u.week_start_date && (
+                      <span className="ml-2 text-gray-400 font-normal">
+                        — Week of{' '}
+                        {new Date(u.week_start_date + 'T00:00:00').toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-gray-500 text-xs mt-0.5">
+                    Uploaded {new Date(u.uploaded_at).toLocaleString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded font-medium ${statusColor[u.status] ?? 'bg-gray-700 text-gray-300'}`}
+                  >
+                    {u.status}
+                  </span>
+                  {u.status === 'review' && (
+                    <Link
+                      href={`/review/${u.id}`}
+                      className="text-xs px-3 py-1 bg-yellow-700 hover:bg-yellow-600 rounded text-white"
+                    >
+                      Review
+                    </Link>
+                  )}
+                  {u.status === 'published' && (
+                    <Link
+                      href={`/board/${u.id}`}
+                      className="text-xs px-3 py-1 bg-green-700 hover:bg-green-600 rounded text-white"
+                    >
+                      View Board
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

@@ -9,6 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@netlify/plugin-nextjs": "^5.15.11",
+    "@supabase/supabase-js": "^2.106.2",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "next": "16.2.7",
     "react": "19.2.4",
     "react-dom": "19.2.4"
