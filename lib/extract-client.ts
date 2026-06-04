@@ -98,6 +98,11 @@ export async function extractBoardFromFile(
   const { base64, mimeType } = await fileToBase64(file);
   const prompt = `${BOARD_PROMPT}\n\n${colorMapString}\n\nExtract all task cards from this pull plan board.`;
   const text = await callVision(prompt, base64, mimeType);
+  console.log('=== RAW AI RESPONSE ===');
+  console.log(text);
+  console.log('=== END RESPONSE ===');
   const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  return JSON.parse(cleaned);
+  const parsed = JSON.parse(cleaned);
+  console.log('Parsed activities count:', parsed.activities?.length ?? 0);
+  return parsed;
 }
