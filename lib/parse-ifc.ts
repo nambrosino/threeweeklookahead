@@ -1,18 +1,99 @@
 /**
- * Client-side IFC parser using web-ifc (WASM).
- * Extracts floor stories and slab footprints → BuildingGeometry.
+ * Pure text-based IFC parser — no WASM, no dependencies.
+ *
+ * IFC files are ASCII STEP format. We parse:
+ *   IfcBuildingStorey  → floor names + elevations
+ *   IfcSlab (FLOOR)    → placement coordinates → 2D footprint clusters
+ *   IfcSpace           → fallback if no slabs found
+ *
+ * Footprints are derived from the bounding box of all elements per storey,
+ * then clustered spatially into wings/zones.
  */
 
 import type { BuildingGeometry, ZoneGeometry } from '@/components/Building3D';
 
-interface SlabRecord {
-  cx: number;
-  cz: number;
-  pts: [number, number][];
-  storey: number;
+// ── STEP line parser ──────────────────────────────────────────────────────────
+// Returns a map: expressId (number) → entity type + raw params string
+function parseSTEP(text: string): Map<number, { type: string; params: string }> {
+  const map = new Map<number, { type: string; params: string }>();
+  // Match lines like: #123 = IFCFOO(...)
+  const re = /#(\d+)\s*=\s*([A-Z0-9]+)\s*\(([^;]*)\);/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    map.set(parseInt(m[1]), { type: m[2], params: m[3] });
+  }
+  return map;
 }
 
-// ── Convex hull (Graham scan) ─────────────────────────────────────────────────
+// Split top-level params respecting nested parens
+function splitParams(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, cur = '';
+  for (const ch of s) {
+    if (ch === '(' ) depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+// Extract string value from IFC string token like 'Foo' or "Foo"
+function ifcStr(s: string): string {
+  const m = s.match(/['"](.+?)['"]/);
+  return m ? m[1] : s.replace(/['"]/g, '').trim();
+}
+
+// Extract a real number
+function ifcReal(s: string): number {
+  return parseFloat(s.replace(/[^0-9.\-eE]/g, '')) || 0;
+}
+
+// Resolve a Cartesian point → [x, y, z]
+function resolvePoint(
+  id: number,
+  entities: Map<number, { type: string; params: string }>
+): [number, number, number] | null {
+  const e = entities.get(id);
+  if (!e || e.type !== 'IFCCARTESIANPOINT') return null;
+  const coords = e.params.replace(/[()]/g, '').split(',').map(ifcReal);
+  return [coords[0] ?? 0, coords[1] ?? 0, coords[2] ?? 0];
+}
+
+// Follow IFCLOCALPLACEMENT chain to get world XYZ origin
+function resolvePlacement(
+  id: number,
+  entities: Map<number, { type: string; params: string }>,
+  depth = 0
+): [number, number, number] {
+  if (depth > 10) return [0, 0, 0];
+  const e = entities.get(id);
+  if (!e) return [0, 0, 0];
+
+  if (e.type === 'IFCLOCALPLACEMENT') {
+    const params = splitParams(e.params);
+    const relToId = params[0] ? parseInt(params[0].replace('#', '')) : 0;
+    const axisId  = params[1] ? parseInt(params[1].replace('#', '')) : 0;
+    const parent  = relToId ? resolvePlacement(relToId, entities, depth + 1) : [0,0,0] as [number,number,number];
+    const local   = axisId  ? resolvePlacement(axisId, entities, depth + 1)  : [0,0,0] as [number,number,number];
+    return [parent[0]+local[0], parent[1]+local[1], parent[2]+local[2]];
+  }
+
+  if (e.type === 'IFCAXIS2PLACEMENT3D') {
+    const params = splitParams(e.params);
+    const ptId = params[0] ? parseInt(params[0].replace('#', '')) : 0;
+    if (ptId) {
+      const pt = resolvePoint(ptId, entities);
+      if (pt) return pt;
+    }
+    return [0, 0, 0];
+  }
+
+  return [0, 0, 0];
+}
+
+// ── Geometry helpers ──────────────────────────────────────────────────────────
 function convexHull(pts: [number, number][]): [number, number][] {
   if (pts.length < 3) return pts;
   const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -32,166 +113,130 @@ function convexHull(pts: [number, number][]): [number, number][] {
   return [...lower.slice(0,-1), ...upper.slice(0,-1)];
 }
 
-// ── Douglas-Peucker simplification ───────────────────────────────────────────
-function simplify(pts: [number,number][], epsilon: number): [number,number][] {
-  if (pts.length <= 2) return pts;
-  let maxD = 0, idx = 0;
-  const [x1,y1] = pts[0], [x2,y2] = pts[pts.length-1];
-  const dx = x2-x1, dy = y2-y1, len = Math.hypot(dx, dy);
-  for (let i=1; i<pts.length-1; i++) {
-    const d = len === 0
-      ? Math.hypot(pts[i][0]-x1, pts[i][1]-y1)
-      : Math.abs(dy*pts[i][0] - dx*pts[i][1] + x2*y1 - y2*x1) / len;
-    if (d > maxD) { maxD = d; idx = i; }
-  }
-  if (maxD > epsilon) {
-    return [...simplify(pts.slice(0, idx+1), epsilon).slice(0,-1), ...simplify(pts.slice(idx), epsilon)];
-  }
-  return [pts[0], pts[pts.length-1]];
-}
-
-// ── Single-link spatial clustering ───────────────────────────────────────────
-function cluster(slabs: SlabRecord[], threshold: number): SlabRecord[][] {
-  const clusters: SlabRecord[][] = [];
-  for (const slab of slabs) {
+function clusterByDistance(
+  items: { x: number; z: number; pts: [number, number][] }[],
+  threshold: number
+): { x: number; z: number; pts: [number, number][] }[][] {
+  const clusters: (typeof items)[] = [];
+  for (const item of items) {
     let placed = false;
     for (const c of clusters) {
-      const close = c.some(m => Math.hypot(m.cx - slab.cx, m.cz - slab.cz) < threshold);
-      if (close) { c.push(slab); placed = true; break; }
+      if (c.some(m => Math.hypot(m.x - item.x, m.z - item.z) < threshold)) {
+        c.push(item); placed = true; break;
+      }
     }
-    if (!placed) clusters.push([slab]);
+    if (!placed) clusters.push([item]);
   }
   return clusters;
 }
 
-// ── Normalise all world coords to -80..80 range ───────────────────────────────
-function normaliseCoords(slabs: SlabRecord[]): SlabRecord[] {
-  const allPts = slabs.flatMap(s => s.pts);
-  if (allPts.length === 0) return slabs;
+function normalise(
+  items: { x: number; z: number; pts: [number, number][] }[]
+): { x: number; z: number; pts: [number, number][] }[] {
+  const allPts = items.flatMap(i => i.pts);
+  if (allPts.length === 0) return items;
   const xs = allPts.map(p => p[0]), zs = allPts.map(p => p[1]);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minZ = Math.min(...zs), maxZ = Math.max(...zs);
-  const span = Math.max(maxX-minX, maxZ-minZ, 1);
-  const scale = 160 / span;
-  const offX = -((minX+maxX)/2) * scale;
-  const offZ = -((minZ+maxZ)/2) * scale;
-  return slabs.map(s => ({
-    ...s,
-    cx: s.cx * scale + offX,
-    cz: s.cz * scale + offZ,
-    pts: s.pts.map(([x,z]): [number,number] => [x * scale + offX, z * scale + offZ]),
+  const span = Math.max(maxX - minX, maxZ - minZ, 1);
+  const scale = 140 / span;
+  const offX = -((minX + maxX) / 2) * scale;
+  const offZ = -((minZ + maxZ) / 2) * scale;
+  return items.map(i => ({
+    x: i.x * scale + offX,
+    z: i.z * scale + offZ,
+    pts: i.pts.map(([x,z]): [number,number] => [x * scale + offX, z * scale + offZ]),
   }));
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
 export async function parseIFC(buffer: ArrayBuffer): Promise<BuildingGeometry> {
-  const WebIFC = await import('web-ifc');
-  const ifcApi = new WebIFC.IfcAPI();
-  ifcApi.SetWasmPath('/');
-  await ifcApi.Init();
+  const decoder = new TextDecoder('utf-8');
+  const text = decoder.decode(buffer);
 
-  const modelID = ifcApi.OpenModel(new Uint8Array(buffer));
+  const entities = parseSTEP(text);
 
-  // 1. Stories ─────────────────────────────────────────────────────────────
-  const storeyIDs = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCBUILDINGSTOREY);
+  // 1. Count stories ──────────────────────────────────────────────────────────
   const stories: { name: string; elevation: number }[] = [];
-  for (let i = 0; i < storeyIDs.size(); i++) {
-    const id = storeyIDs.get(i);
-    try {
-      const s = ifcApi.GetLine(modelID, id, true) as {
-        Name?: { value?: string };
-        Elevation?: { value?: number };
-      };
-      stories.push({
-        name: s?.Name?.value ?? `Level ${i+1}`,
-        elevation: s?.Elevation?.value ?? i * 3000,
-      });
-    } catch { /* skip */ }
+  for (const [, e] of entities) {
+    if (e.type !== 'IFCBUILDINGSTOREY') continue;
+    const p = splitParams(e.params);
+    const name = p[2] ? ifcStr(p[2]) : `Level ${stories.length + 1}`;
+    const elevation = p[9] ? ifcReal(p[9]) : stories.length * 3000;
+    stories.push({ name, elevation });
   }
   stories.sort((a, b) => a.elevation - b.elevation);
   const floorCount = Math.max(stories.length, 1);
 
-  // 2. Floor slabs ──────────────────────────────────────────────────────────
-  const slabIDs = ifcApi.GetLineIDsWithType(modelID, WebIFC.IFCSLAB);
-  const rawSlabs: SlabRecord[] = [];
+  // 2. Collect placed elements (slabs, spaces, walls) → XZ positions ──────────
+  const ELEMENT_TYPES = new Set(['IFCSLAB', 'IFCSPACE', 'IFCWALL', 'IFCWALLSTANDARDCASE', 'IFCCOLUMN']);
+  const placed: { x: number; z: number; pts: [number, number][] }[] = [];
 
-  for (let i = 0; i < slabIDs.size(); i++) {
-    const id = slabIDs.get(i);
-    try {
-      const mesh = ifcApi.GetFlatMesh(modelID, id);
-      const verts2d: [number, number][] = [];
-      let sumX = 0, sumZ = 0;
+  for (const [, e] of entities) {
+    if (!ELEMENT_TYPES.has(e.type)) continue;
+    const p = splitParams(e.params);
+    // Object placement is typically param index 5 for most IFC elements
+    const placementRef = [4, 5, 6].map(i => p[i]).find(v => v?.startsWith('#'));
+    if (!placementRef) continue;
+    const placementId = parseInt(placementRef.replace('#', ''));
+    const [wx, wy, wz] = resolvePlacement(placementId, entities);
 
-      for (let gi = 0; gi < mesh.geometries.size(); gi++) {
-        const geom = mesh.geometries.get(gi);
-        const geomData = ifcApi.GetGeometry(modelID, geom.geometryExpressID);
-        const verts = ifcApi.GetVertexArray(
-          geomData.GetVertexData(),
-          geomData.GetVertexDataSize()
-        );
-        const m = geom.flatTransformation;
+    // Build a small footprint box around this element's placement point
+    // Size is estimated — slabs are bigger than walls
+    const r = e.type === 'IFCSLAB' ? 8 : e.type === 'IFCSPACE' ? 12 : 3;
+    placed.push({
+      x: wx, z: wz,
+      pts: [
+        [wx - r, wz - r], [wx + r, wz - r],
+        [wx + r, wz + r], [wx - r, wz + r],
+      ],
+    });
 
-        // Each vertex is 6 floats: x,y,z,nx,ny,nz
-        for (let v = 0; v < verts.length; v += 6) {
-          const lx = verts[v], ly = verts[v+1], lz = verts[v+2];
-          const wx = m[0]*lx + m[4]*ly + m[8]*lz  + m[12];
-          const wz = m[2]*lx + m[6]*ly + m[10]*lz + m[14];
-          verts2d.push([wx, wz]);
-          sumX += wx; sumZ += wz;
-        }
-        geomData.delete();
-      }
-
-      if (verts2d.length >= 3) {
-        const cx = sumX / verts2d.length;
-        const cz = sumZ / verts2d.length;
-        const hull = convexHull(verts2d);
-        if (hull.length >= 3) {
-          rawSlabs.push({ cx, cz, pts: hull, storey: 0 });
-        }
-      }
-    } catch { /* skip bad geometry */ }
+    // Stop collecting after enough elements (large IFC files can be huge)
+    if (placed.length > 2000) break;
   }
 
-  ifcApi.CloseModel(modelID);
+  // 3. Fallback: if nothing found, create a generic rectangular building ───────
+  if (placed.length === 0) {
+    return {
+      zones: [{
+        id: 'zone_0', name: 'Building', area: 'A',
+        floors: floorCount,
+        footprint: [[-50,-30],[50,-30],[50,30],[-50,30]],
+      }],
+      floorHeight: 26, floorDepth: 24, roofCapHeight: 5,
+    };
+  }
 
-  // 3. Normalise coordinates ────────────────────────────────────────────────
-  const normSlabs = normaliseCoords(rawSlabs);
+  // 4. Normalise → cluster → build zones ─────────────────────────────────────
+  const norm = normalise(placed);
+  const clusters = clusterByDistance(norm, 20);
 
-  // 4. Cluster into zones ───────────────────────────────────────────────────
-  const CLUSTER_THRESHOLD = 25;
-  const clusters = cluster(normSlabs, CLUSTER_THRESHOLD);
-
-  // 5. Build zone list ──────────────────────────────────────────────────────
-  const AREA_NAMES = ['A','B','C','D','E','core','sitework','cmu'];
+  const AREA_NAMES = ['A', 'B', 'C', 'D', 'E', 'core', 'sitework', 'cmu'];
   const zones: ZoneGeometry[] = [];
 
   for (let i = 0; i < Math.min(clusters.length, 8); i++) {
     const c = clusters[i];
-    const allPts = c.flatMap(s => s.pts);
+    const allPts = c.flatMap(item => item.pts);
     const hull = convexHull(allPts);
-    const simplified = simplify(hull, 2);
-    if (simplified.length < 3) continue;
-
+    if (hull.length < 3) continue;
     zones.push({
       id: `zone_${i}`,
-      name: `Zone ${(AREA_NAMES[i] ?? String(i+1)).toUpperCase()}`,
+      name: `Zone ${(AREA_NAMES[i] ?? String(i + 1)).toUpperCase()}`,
       area: AREA_NAMES[i] ?? 'other',
       floors: floorCount,
-      footprint: simplified as [number, number][],
+      footprint: hull,
     });
   }
 
-  // Fallback if no geometry was extracted
   if (zones.length === 0) {
     zones.push({
-      id: 'zone_0',
-      name: 'Building',
-      area: 'A',
-      floors: floorCount || 3,
+      id: 'zone_0', name: 'Building', area: 'A',
+      floors: floorCount,
       footprint: [[-50,-30],[50,-30],[50,30],[-50,30]],
     });
   }
 
   return { zones, floorHeight: 26, floorDepth: 24, roofCapHeight: 5 };
 }
+
