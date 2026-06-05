@@ -186,7 +186,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
 
       {/* ── Header ── */}
       <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-bold text-zinc-900 text-sm">DOC Pull Plan</span>
           <button
             onClick={() => setShowWeekPicker(v => !v)}
@@ -198,6 +198,28 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
             {weekLabel || 'Select week range'}
             <span className="text-zinc-400">▾</span>
           </button>
+
+          {/* Contractor filter dropdown */}
+          <select
+            value={filterTrade ?? ''}
+            onChange={e => setFilterTrade(e.target.value || null)}
+            className="h-8 pl-3 pr-7 rounded-md border border-zinc-300 bg-white text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+          >
+            <option value="">All contractors</option>
+            {tradesPresent.map(key => (
+              <option key={key} value={key}>
+                {TRADE_COLORS[key]?.company} — {TRADE_COLORS[key]?.name}
+              </option>
+            ))}
+          </select>
+          {filterTrade && (
+            <button
+              onClick={() => setFilterTrade(null)}
+              className="h-8 px-2 rounded-md border border-zinc-300 bg-white text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-colors"
+            >
+              ✕ Clear
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setViewMode(v => v === 'board' ? 'owner' : 'board')}
