@@ -208,15 +208,44 @@ export async function parseIFC(buffer: ArrayBuffer): Promise<BuildingGeometry> {
     };
   }
 
-  // 4. Normalise → cluster → build zones ─────────────────────────────────────
+  // 4. Normalise → sector-split → build zones ──────────────────────────────
   const norm = normalise(placed);
-  const clusters = clusterByDistance(norm, 20);
+
+  // First try distance clustering with a tight threshold
+  let clusters = clusterByDistance(norm, 12);
+
+  // If everything ends up in one cluster (connected building), split by angular sectors
+  // around the centroid — works well for radial/wing-style buildings
+  if (clusters.length <= 1 && norm.length > 4) {
+    const cx = norm.reduce((s,p) => s + p.x, 0) / norm.length;
+    const cz = norm.reduce((s,p) => s + p.z, 0) / norm.length;
+
+    // Divide into 4 sectors: NW, NE, SE, SW
+    const sectors: (typeof norm)[] = [[], [], [], []];
+    for (const p of norm) {
+      const dx = p.x - cx, dz = p.z - cz;
+      const sector = dx >= 0 ? (dz >= 0 ? 1 : 0) : (dz >= 0 ? 2 : 3);
+      sectors[sector].push(p);
+    }
+
+    // Add center cluster (elements near centroid)
+    const CENTER_R = 18;
+    const center = norm.filter(p => Math.hypot(p.x - cx, p.z - cz) < CENTER_R);
+    const wings  = sectors.filter(s => s.length > 2);
+
+    clusters = center.length > 2
+      ? [center, ...wings.filter(s => s.some(p => Math.hypot(p.x-cx,p.z-cz) >= CENTER_R))]
+      : wings;
+
+    if (clusters.length <= 1) clusters = [norm]; // fallback
+  }
 
   const AREA_NAMES = ['A', 'B', 'C', 'D', 'E', 'core', 'sitework', 'cmu'];
   const zones: ZoneGeometry[] = [];
 
   for (let i = 0; i < Math.min(clusters.length, 8); i++) {
     const c = clusters[i];
+    if (c.length === 0) continue;
     const allPts = c.flatMap(item => item.pts);
     const hull = convexHull(allPts);
     if (hull.length < 3) continue;
