@@ -38,9 +38,11 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
   const [isDrawing, setIsDrawing] = useState(false);
   const [dragPt, setDragPt] = useState<{zoneId:string; ptIdx:number} | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState('');
   const canvasRef = useRef<SVGSVGElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
+  const ifcRef    = useRef<HTMLInputElement>(null);
 
   // Load project
   useEffect(() => {
@@ -60,6 +62,26 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
   }, [projectId]);
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500); }
+
+  // ── IFC import ─────────────────────────────────────────────────────────────
+  async function handleIFCImport(file: File) {
+    setImporting(true);
+    showToast('Parsing IFC… this may take 15–30 seconds for large files');
+    try {
+      const buffer = await file.arrayBuffer();
+      const { parseIFC } = await import('@/lib/parse-ifc');
+      const geo = await parseIFC(buffer);
+      setGeometry(geo);
+      setActiveZoneId(geo.zones[0]?.id ?? null);
+      showToast(`Imported ${geo.zones.length} zones from IFC. Review and adjust as needed.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast('IFC import failed: ' + msg.slice(0, 120));
+      console.error('IFC parse error:', err);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   // ── Floor plan upload ──────────────────────────────────────────────────────
   async function uploadFloorPlan(file: File) {
@@ -278,6 +300,29 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
                   : 'Select a zone from the left panel, then draw on the canvas.'}
             </span>
             <div className="ml-auto flex items-center gap-2">
+              {/* IFC import */}
+              <input ref={ifcRef} type="file" accept=".ifc" className="hidden"
+                onChange={e => e.target.files?.[0] && handleIFCImport(e.target.files[0])} />
+              <button onClick={() => ifcRef.current?.click()} disabled={importing}
+                className="px-3 py-1.5 text-xs rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-60 flex items-center gap-1.5">
+                {importing ? (
+                  <>
+                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Parsing IFC…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                    </svg>
+                    Import IFC
+                  </>
+                )}
+              </button>
+              {/* Floor plan image */}
               <input ref={fileRef} type="file" accept="image/*" className="hidden"
                 onChange={e => e.target.files?.[0] && uploadFloorPlan(e.target.files[0])} />
               <button onClick={() => fileRef.current?.click()}
