@@ -209,8 +209,37 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
         <div className="w-72 shrink-0 bg-white border-r border-zinc-200 flex flex-col overflow-y-auto">
           <div className="p-4 border-b border-zinc-100">
             <h2 className="text-sm font-semibold text-zinc-700 mb-3">Zones</h2>
+
+            {/* IFC import — primary action */}
+            <input ref={ifcRef} type="file" accept=".ifc" className="hidden"
+              onChange={e => e.target.files?.[0] && handleIFCImport(e.target.files[0])} />
+            <button onClick={() => ifcRef.current?.click()} disabled={importing}
+              className="w-full px-3 py-2 rounded-md text-sm font-medium mb-2 flex items-center justify-center gap-2 transition-colors bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60">
+              {importing ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Parsing IFC…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                  Import IFC File
+                </>
+              )}
+            </button>
+
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200"/></div>
+              <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-zinc-400">or draw manually</span></div>
+            </div>
+
             <button onClick={addZone}
-              className="w-full px-3 py-2 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium">
+              className="w-full px-3 py-2 rounded-md text-sm bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 font-medium">
               + Add Zone
             </button>
             <p className="text-xs text-zinc-400 mt-2">
@@ -300,34 +329,11 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
                   : 'Select a zone from the left panel, then draw on the canvas.'}
             </span>
             <div className="ml-auto flex items-center gap-2">
-              {/* IFC import */}
-              <input ref={ifcRef} type="file" accept=".ifc" className="hidden"
-                onChange={e => e.target.files?.[0] && handleIFCImport(e.target.files[0])} />
-              <button onClick={() => ifcRef.current?.click()} disabled={importing}
-                className="px-3 py-1.5 text-xs rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-60 flex items-center gap-1.5">
-                {importing ? (
-                  <>
-                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                    </svg>
-                    Parsing IFC…
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                    </svg>
-                    Import IFC
-                  </>
-                )}
-              </button>
-              {/* Floor plan image */}
               <input ref={fileRef} type="file" accept="image/*" className="hidden"
                 onChange={e => e.target.files?.[0] && uploadFloorPlan(e.target.files[0])} />
               <button onClick={() => fileRef.current?.click()}
                 className="px-3 py-1.5 text-xs rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50">
-                {floorPlanUrl ? '↺ Replace Floor Plan' : '+ Upload Floor Plan'}
+                {floorPlanUrl ? '↺ Replace Floor Plan' : '+ Upload Floor Plan (optional)'}
               </button>
             </div>
           </div>
