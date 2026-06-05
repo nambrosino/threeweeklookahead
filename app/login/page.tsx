@@ -33,32 +33,38 @@ function LoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
+    <main className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">📋</div>
-          <h1 className="text-2xl font-bold text-white">DOC Pull Plan</h1>
-          <p className="text-gray-400 text-sm mt-1">Enter the access password to continue</p>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 mb-4">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-zinc-900">DOC Pull Plan</h1>
+          <p className="text-zinc-500 text-sm mt-1">Enter the access password to continue</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Password"
-            autoFocus
-            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-          />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={!password || loading}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 font-semibold text-white transition-colors"
-          >
-            {loading ? 'Checking…' : 'Enter'}
-          </button>
-        </form>
+        <div className="bg-white border border-zinc-200 rounded-xl shadow-sm p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Password"
+              autoFocus
+              className="w-full h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+            />
+            {error && <p className="text-red-600 text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={!password || loading}
+              className="w-full py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-200 disabled:text-zinc-400 font-medium text-sm text-white transition-colors"
+            >
+              {loading ? 'Checking…' : 'Enter'}
+            </button>
+          </form>
+        </div>
       </div>
     </main>
   );

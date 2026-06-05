@@ -26,27 +26,34 @@ export default function NewProjectPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100 p-6 flex items-center justify-center">
+    <main className="min-h-screen bg-zinc-50 text-zinc-900 p-6 flex items-center justify-center">
       <div className="max-w-md w-full">
-        <h1 className="text-2xl font-bold text-white mb-6">New Project</h1>
-        <label className="block text-sm text-gray-300 mb-1">Project name</label>
-        <input
-          type="text"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleCreate()}
-          placeholder="e.g. Woonsocket Residence Inn"
-          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white mb-4"
-          autoFocus
-        />
-        {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
-        <button
-          onClick={handleCreate}
-          disabled={!name.trim() || saving}
-          className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 font-semibold"
-        >
-          {saving ? 'Creating…' : 'Create Project'}
-        </button>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-zinc-900">New Project</h1>
+          <p className="text-zinc-500 text-sm mt-1">Create a project to organize your pull plan uploads.</p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl shadow-sm p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">Project name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              placeholder="e.g. Woonsocket Residence Inn"
+              className="w-full h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+              autoFocus
+            />
+          </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <button
+            onClick={handleCreate}
+            disabled={!name.trim() || saving}
+            className="w-full py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-200 disabled:text-zinc-400 font-medium text-sm text-white transition-colors"
+          >
+            {saving ? 'Creating…' : 'Create Project'}
+          </button>
+        </div>
       </div>
     </main>
   );

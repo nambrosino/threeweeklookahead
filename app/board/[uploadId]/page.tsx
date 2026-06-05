@@ -45,7 +45,7 @@ function hexToRgba(hex: string, alpha: number): string {
 function getTextColor(hex: string): string {
   const h = hex.replace('#', '');
   const lum = (0.299*parseInt(h.slice(0,2),16) + 0.587*parseInt(h.slice(2,4),16) + 0.114*parseInt(h.slice(4,6),16)) / 255;
-  return lum > 0.5 ? '#111' : '#fff';
+  return lum > 0.5 ? '#111827' : '#ffffff';
 }
 
 export default function BoardPage({ params }: { params: Promise<{ uploadId: string }> }) {
@@ -169,7 +169,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
     const { default: html2canvas } = await import('html2canvas');
     const { default: jsPDF } = await import('jspdf');
     if (!printRef.current) return;
-    const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#0f172a' });
+    const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#ffffff' });
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width/2, canvas.height/2] });
     pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, canvas.width/2, canvas.height/2);
     pdf.save(`pullplan-${startWeek}.pdf`);
@@ -182,74 +182,90 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
     : '';
 
   return (
-    <div className="flex flex-col bg-gray-950 text-gray-100 overflow-hidden" style={{ height: '100dvh' }} ref={printRef}>
+    <div className="flex flex-col bg-zinc-50 text-zinc-900 overflow-hidden" style={{ height: '100dvh' }} ref={printRef}>
 
       {/* ── Header ── */}
-      <div className="shrink-0 bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
+      <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="font-bold text-white text-sm">DOC Pull Plan</span>
+          <span className="font-bold text-zinc-900 text-sm">DOC Pull Plan</span>
           <button
             onClick={() => setShowWeekPicker(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-xs text-gray-300"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-50 border border-zinc-300 rounded-md text-xs text-zinc-700 transition-colors"
           >
-            📅 {weekLabel || 'Select week range'}
-            <span className="text-gray-500">▾</span>
+            <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {weekLabel || 'Select week range'}
+            <span className="text-zinc-400">▾</span>
           </button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setViewMode(v => v === 'board' ? 'owner' : 'board')}
-            className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${viewMode === 'owner' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'}`}>
+            className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${viewMode === 'owner' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'}`}>
             {viewMode === 'board' ? 'Owner View' : '← Board View'}
           </button>
-          <button onClick={handleExportPDF} className="px-3 py-1 rounded text-xs bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700">Export PDF</button>
-          <a href="/upload" className="px-3 py-1 rounded text-xs bg-blue-700 hover:bg-blue-600 border border-blue-500 text-white font-semibold">+ Upload More</a>
-          <a href={`/review/${uploadId}`} className="px-3 py-1 rounded text-xs bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700">Edit</a>
-          <a href="/" className="px-3 py-1 rounded text-xs bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700">Home</a>
+          <button onClick={handleExportPDF} className="px-3 py-1.5 rounded-md text-xs bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors">Export PDF</button>
+          <a href="/upload" className="px-3 py-1.5 rounded-md text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">+ Upload More</a>
+          <a href={`/review/${uploadId}`} className="px-3 py-1.5 rounded-md text-xs bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors">Edit</a>
+          <a href="/" className="px-3 py-1.5 rounded-md text-xs bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors">Home</a>
         </div>
       </div>
 
       {/* ── Week picker dropdown ── */}
       {showWeekPicker && (
-        <div className="shrink-0 bg-gray-900 border-b border-gray-700 px-4 py-3">
-          <p className="text-xs text-gray-400 mb-2">Select the starting week — board will show 3 weeks from that date:</p>
+        <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-3">
+          <p className="text-xs text-zinc-500 mb-2">Select the starting week — board will show 3 weeks from that date:</p>
           <div className="flex flex-wrap gap-2">
             {availableWeeks.map(w => (
               <button key={w}
                 onClick={() => { setStartWeek(w); setShowWeekPicker(false); }}
-                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${startWeek === w ? 'bg-blue-600 text-white' : 'bg-gray-800 border border-gray-600 text-gray-300 hover:bg-gray-700'}`}>
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${startWeek === w ? 'bg-blue-600 text-white' : 'bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50'}`}>
                 Week of {new Date(w+'T00:00:00').toLocaleDateString()}
               </button>
             ))}
-            {availableWeeks.length === 0 && <span className="text-gray-500 text-xs">No published boards yet</span>}
+            {availableWeeks.length === 0 && <span className="text-zinc-400 text-xs">No published boards yet</span>}
           </div>
         </div>
       )}
 
       {/* ── Trade legend bar ── */}
-      <div className="shrink-0 bg-gray-900 border-b border-gray-700 px-4 py-1.5 flex flex-wrap gap-1.5">
+      <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-1.5 flex flex-wrap gap-1.5">
         {tradesPresent.map(key => {
           const t = TRADE_COLORS[key];
           const active = filterTrade === key;
           return (
             <button key={key} onClick={() => setFilterTrade(prev => prev === key ? null : key)}
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs transition-all"
-              style={{ background: hexToRgba(t.hex, 0.15), border: `1px solid ${active ? t.hex : t.hex+'50'}`, color: active ? '#fff' : '#ccc', boxShadow: active ? `0 0 0 1px ${t.hex}` : 'none' }}>
-              <span className="w-2 h-2 rounded-full" style={{ background: t.hex }} />{t.company}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs transition-all bg-white"
+              style={{
+                border: `1px solid ${active ? t.hex : t.hex + '60'}`,
+                color: active ? t.hex : '#52525b',
+                boxShadow: active ? `0 0 0 1px ${t.hex}` : 'none',
+              }}>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: t.hex }} />
+              {t.company}
             </button>
           );
         })}
-        {filterTrade && <button onClick={() => setFilterTrade(null)} className="px-2 py-0.5 rounded text-xs text-gray-400 hover:text-white">Clear ×</button>}
+        {filterTrade && (
+          <button onClick={() => setFilterTrade(null)} className="px-2 py-0.5 rounded-md text-xs text-zinc-500 hover:bg-zinc-100 transition-colors">
+            Clear ×
+          </button>
+        )}
       </div>
 
       {/* ── Area filter pills ── */}
-      <div className="shrink-0 bg-gray-900 border-b border-gray-700 px-4 py-1.5 flex flex-wrap gap-1.5">
+      <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-1.5 flex flex-wrap gap-1.5">
         {['A','B','C','D','sitework','cmu'].map(area => {
           const hidden = hiddenAreas.has(area);
           const color = AREA_COLORS[area];
           return (
             <button key={area} onClick={() => setHiddenAreas(prev => { const n = new Set(prev); n.has(area) ? n.delete(area) : n.add(area); return n; })}
-              className="px-2 py-0.5 rounded text-xs font-semibold transition-all"
-              style={{ background: hidden ? '#374151' : color+'30', border: `1px solid ${hidden ? '#4b5563' : color}`, color: hidden ? '#6b7280' : color }}>
+              className="px-2 py-0.5 rounded-md text-xs font-semibold transition-all"
+              style={{
+                background: hidden ? '#f4f4f5' : color + '20',
+                border: `1px solid ${hidden ? '#d4d4d8' : color + '80'}`,
+                color: hidden ? '#a1a1aa' : color,
+              }}>
               {area === 'sitework' ? 'SITEWORK' : area === 'cmu' ? 'CMU' : `AREA ${area}`}
             </button>
           );
@@ -258,41 +274,47 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
 
       {/* ── Main ── */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* 3D model */}
-        <div className="shrink-0 border-r border-gray-700 bg-gray-950" style={{ width: viewMode === 'owner' ? '60%' : '240px' }}>
-          <Building3D highlightArea={selectedActivity?.area ?? null} highlightLevel={selectedActivity?.level ?? null} highlightTrade={selectedActivity?.trade ?? null} />
-          {selectedActivity && (
-            <div className="px-3 pb-2 text-xs border-t border-gray-800 pt-2">
-              <div className="font-semibold text-white truncate">{selectedActivity.task_name}</div>
-              <div className="text-gray-400">{TRADE_COLORS[selectedActivity.trade]?.company} · {AREA_ROWS.find(r => r.area === selectedActivity.area && (r.area_sub ?? null) === (selectedActivity.area_sub ?? null))?.label}</div>
-              {selectedActivity.predecessor && <div className="text-gray-500 italic mt-0.5">↳ {selectedActivity.predecessor}</div>}
-              <div className="text-gray-500 mt-0.5">Crew: {selectedActivity.crew_size ?? '—'} · Dur: {selectedActivity.duration_days ?? '—'}d</div>
+        {/* 3D model panel */}
+        <div className="shrink-0 border-r border-zinc-200 bg-white overflow-hidden" style={{ width: viewMode === 'owner' ? '60%' : '240px' }}>
+          <div className="w-full h-full flex flex-col">
+            <div className="flex-1 min-h-0">
+              <Building3D highlightArea={selectedActivity?.area ?? null} highlightLevel={selectedActivity?.level ?? null} highlightTrade={selectedActivity?.trade ?? null} />
             </div>
-          )}
+            {selectedActivity && (
+              <div className="px-3 pb-3 text-xs border-t border-zinc-100 pt-2 bg-white">
+                <div className="font-semibold text-zinc-800 truncate">{selectedActivity.task_name}</div>
+                <div className="text-zinc-500 mt-0.5">{TRADE_COLORS[selectedActivity.trade]?.company} · {AREA_ROWS.find(r => r.area === selectedActivity.area && (r.area_sub ?? null) === (selectedActivity.area_sub ?? null))?.label}</div>
+                {selectedActivity.predecessor && <div className="text-zinc-400 italic mt-0.5 truncate">↳ {selectedActivity.predecessor}</div>}
+                <div className="text-zinc-400 mt-0.5">Crew: {selectedActivity.crew_size ?? '—'} · Dur: {selectedActivity.duration_days ?? '—'}d</div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Grid */}
         <div className="flex-1 overflow-auto">
           {!startWeek ? (
-            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+            <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
               <div className="text-center">
-                <div className="text-3xl mb-3">📅</div>
+                <svg className="w-10 h-10 mx-auto mb-3 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
                 <p>Click the week selector above to choose a starting week</p>
               </div>
             </div>
           ) : (
-            <table className="border-collapse min-w-max text-xs">
+            <table className="border-collapse min-w-max text-xs bg-white">
               <thead>
                 <tr>
-                  <th className="sticky top-0 left-0 z-20 bg-gray-900 border border-gray-700 px-3 py-2 text-left text-gray-400 font-medium min-w-[160px]">Area</th>
+                  <th className="sticky top-0 left-0 z-20 bg-zinc-50 border border-zinc-200 px-3 py-2 text-left text-zinc-500 font-medium min-w-[160px]">Area</th>
                   {threWeekDates.map((date, i) => {
                     const isSat = new Date(date+'T00:00:00').getDay() === 6;
                     const isMonday = i % 6 === 0;
                     return (
                       <th key={date}
-                        className={`sticky top-0 z-10 border border-gray-700 px-2 py-1 text-center whitespace-nowrap min-w-[100px] ${isSat ? 'bg-gray-800 text-gray-600' : 'bg-gray-900 text-gray-300'} ${isMonday ? 'border-l-2 border-l-blue-800' : ''}`}>
+                        className={`sticky top-0 z-10 border border-zinc-200 px-2 py-1 text-center whitespace-nowrap min-w-[100px] ${isSat ? 'bg-zinc-50 text-zinc-400' : 'bg-zinc-50 text-zinc-600'} ${isMonday ? 'border-l-2 border-l-blue-400' : ''}`}>
                         <div className="text-[10px] font-semibold">{formatColHeader(date)}</div>
-                        {isMonday && <div className="text-[9px] text-blue-400 font-normal">Week {Math.floor(i/6)+1}</div>}
+                        {isMonday && <div className="text-[9px] text-blue-500 font-normal">Week {Math.floor(i/6)+1}</div>}
                       </th>
                     );
                   })}
@@ -301,8 +323,8 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
               <tbody>
                 {AREA_ROWS.filter(r => !hiddenAreas.has(r.area)).map(row => (
                   <tr key={row.label}>
-                    <td className="sticky left-0 z-10 border border-gray-700 px-2 py-1 font-semibold whitespace-nowrap"
-                      style={{ background: AREA_COLORS[row.area], color: '#fff', minWidth: 160 }}>
+                    <td className="sticky left-0 z-10 border border-zinc-200 px-2 py-1 font-semibold whitespace-nowrap text-white"
+                      style={{ background: AREA_COLORS[row.area], minWidth: 160 }}>
                       {row.label}
                     </td>
                     {threWeekDates.map(date => {
@@ -310,10 +332,11 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
                       const isMonday = new Date(date+'T00:00:00').getDay() === 1;
                       const cards = cellMap[row.label]?.[date] ?? [];
                       return (
-                        <td key={date} className={`border border-gray-800 align-top p-1 ${isMonday ? 'border-l-2 border-l-blue-800' : ''}`}
-                          style={{ minHeight: 60, minWidth: 100, background: isSat ? '#111827' : undefined }}>
+                        <td key={date}
+                          className={`border border-zinc-100 align-top p-1 ${isMonday ? 'border-l-2 border-l-blue-400' : ''}`}
+                          style={{ minHeight: 60, minWidth: 100, background: isSat ? '#f9fafb' : '#ffffff' }}>
                           {isSat ? (
-                            <div className="text-gray-700 text-center text-xl font-bold select-none pt-1">×</div>
+                            <div className="text-zinc-300 text-center text-xl font-bold select-none pt-1">×</div>
                           ) : (
                             cards.map(act => (
                               <TaskCard key={act.id} activity={act} filterTrade={filterTrade}
@@ -334,7 +357,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
       </div>
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-2 rounded-full text-sm shadow-lg z-50">{toast}</div>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-zinc-900 text-white px-5 py-2 rounded-full text-sm shadow-lg z-50">{toast}</div>
       )}
     </div>
   );
@@ -349,27 +372,30 @@ function TaskCard({ activity: act, filterTrade, selected, onSelect, onToggleStar
 
   return (
     <div onClick={() => onSelect(act.id)}
-      className="rounded mb-1 cursor-pointer transition-all relative"
+      className="rounded mb-1 cursor-pointer transition-all relative bg-white"
       style={{
-        background: act.is_milestone ? 'transparent' : hexToRgba(color, 0.15),
         borderLeft: act.is_milestone ? undefined : `3px solid ${color}`,
         border: act.is_milestone ? `1px dashed ${color}60` : undefined,
-        opacity: dimmed ? 0.25 : 1,
+        background: act.is_milestone ? 'transparent' : hexToRgba(color, 0.07),
+        opacity: dimmed ? 0.2 : 1,
         outline: selected ? `2px solid ${color}` : 'none',
+        outlineOffset: selected ? '1px' : undefined,
         padding: '3px 5px',
         fontStyle: act.is_milestone ? 'italic' : 'normal',
       }}>
       <div className="flex items-start justify-between gap-1">
-        <div className="font-semibold leading-tight text-[10px]" style={{ color: getTextColor(color) }}>
+        <div className="font-semibold leading-tight text-[10px] text-zinc-800">
           {act.is_milestone && '★ '}{statusDot && <span className="mr-0.5">{statusDot}</span>}{act.task_name}
         </div>
         <button onClick={e => { e.stopPropagation(); onToggleStar(act.id, act.is_starred); }}
-          className="shrink-0 text-[11px] leading-none hover:scale-125 transition-transform">
+          className="shrink-0 text-[11px] leading-none hover:scale-125 transition-transform text-zinc-400 hover:text-yellow-500">
           {act.is_starred ? '★' : '☆'}
         </button>
       </div>
-      {act.predecessor && <div className="text-[9px] italic mt-0.5 truncate" style={{ color: getTextColor(color), opacity: 0.7 }}>↳ {act.predecessor}</div>}
-      <div className="text-[9px] mt-0.5 flex gap-1.5" style={{ color: getTextColor(color), opacity: 0.65 }}>
+      {act.predecessor && (
+        <div className="text-[9px] italic mt-0.5 truncate text-zinc-500">↳ {act.predecessor}</div>
+      )}
+      <div className="text-[9px] mt-0.5 flex gap-1.5 text-zinc-500">
         {act.crew_size !== null && <span>👷{act.crew_size}</span>}
         {act.duration_days !== null && <span>{act.duration_days}d</span>}
       </div>
