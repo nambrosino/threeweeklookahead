@@ -149,7 +149,9 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   const visibleActivities = (viewMode === 'owner'
     ? allActivities.filter(a => a.is_starred || a.is_milestone || (a.duration_days ?? 0) >= 3 || a.task_name.toLowerCase().includes('inspection'))
     : allActivities
-  ).filter(a => threWeekDates.includes(a.resolved_date));
+  )
+  .filter(a => threWeekDates.includes(a.resolved_date))
+  .filter(a => !filterTrade || a.trade === filterTrade);
 
   // Cell lookup: rowKey → date → activities[]
   const cellMap: Record<string, Record<string, DatedActivity[]>> = {};
@@ -161,6 +163,11 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
     if (!cellMap[rk][act.resolved_date]) cellMap[rk][act.resolved_date] = [];
     cellMap[rk][act.resolved_date].push(act);
   }
+
+  // When a contractor is filtered, only show rows that have at least one activity from them
+  const activeRowLabels = filterTrade
+    ? new Set(Object.keys(cellMap))
+    : null;
 
   const tradesPresent = Array.from(new Set(allActivities.map(a => a.trade))).filter(Boolean).sort();
   const selectedActivity = allActivities.find(a => a.id === selectedId) ?? null;
@@ -347,7 +354,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
                 </tr>
               </thead>
               <tbody>
-                {AREA_ROWS.filter(r => !hiddenAreas.has(r.area)).map(row => (
+                {AREA_ROWS.filter(r => !hiddenAreas.has(r.area) && (!activeRowLabels || activeRowLabels.has(r.label))).map(row => (
                   <tr key={row.label}>
                     <td className="sticky left-0 z-10 border border-zinc-200 px-2 py-1 font-semibold whitespace-nowrap text-white"
                       style={{ background: AREA_COLORS[row.area], minWidth: 160 }}>
@@ -392,8 +399,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
 function TaskCard({ activity: act, filterTrade, selected, onSelect, onToggleStar }:
   { activity: DatedActivity; filterTrade: string | null; selected: boolean; onSelect: (id: string) => void; onToggleStar: (id: string, current: boolean) => void }) {
   const trade = TRADE_COLORS[act.trade];
-  const color = trade?.hex ?? '#888';
-  const dimmed = filterTrade !== null && filterTrade !== act.trade;
+  const color = trade?.hex ?? '#6b7280';
   const statusDot = act.status === 'red' ? '🔴' : act.status === 'yellow' ? '🟡' : null;
 
   return (
@@ -403,7 +409,7 @@ function TaskCard({ activity: act, filterTrade, selected, onSelect, onToggleStar
         borderLeft: act.is_milestone ? undefined : `3px solid ${color}`,
         border: act.is_milestone ? `1px dashed ${color}60` : undefined,
         background: act.is_milestone ? 'transparent' : hexToRgba(color, 0.07),
-        opacity: dimmed ? 0.2 : 1,
+        opacity: 1,
         outline: selected ? `2px solid ${color}` : 'none',
         outlineOffset: selected ? '1px' : undefined,
         padding: '3px 5px',
