@@ -110,7 +110,10 @@ export default function Home() {
                     )}
                   </div>
                   <div className="text-zinc-400 text-xs mt-0.5">
-                    Uploaded {new Date(u.uploaded_at).toLocaleString()}
+                    Uploaded {new Date(u.uploaded_at).toLocaleString()} ·{' '}
+                    <Link href={`/projects/${u.project_id}/model`} className="text-blue-500 hover:underline">
+                      Edit 3D model
+                    </Link>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { Activity } from '@/lib/types';
 import { TRADE_COLORS, AREA_COLORS, AREA_ROWS } from '@/lib/constants';
+import type { BuildingGeometry } from '@/components/Building3D';
 
 const Building3D = dynamic(() => import('@/components/Building3D'), { ssr: false });
 type ViewMode = 'board' | 'owner';
@@ -54,9 +55,11 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
 
   const [allActivities, setAllActivities] = useState<DatedActivity[]>([]);
   const [projectId, setProjectId] = useState('');
-  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]); // ISO Monday dates
+  const [buildingGeometry, setBuildingGeometry] = useState<BuildingGeometry | null>(null);
+  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
   const [startWeek, setStartWeek] = useState<string>('');
   const [showWeekPicker, setShowWeekPicker] = useState(false);
+  const [showModel, setShowModel] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterTrade, setFilterTrade] = useState<string | null>(null);
   const [hiddenAreas, setHiddenAreas] = useState<Set<string>>(new Set());
@@ -69,6 +72,11 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
         .from('uploads').select('project_id').eq('id', uploadId).single();
       if (!up?.project_id) return;
       setProjectId(up.project_id);
+
+      // Load custom building geometry for this project
+      const { data: proj } = await supabase
+        .from('projects').select('building_geometry').eq('id', up.project_id).single();
+      if (proj?.building_geometry) setBuildingGeometry(proj.building_geometry as BuildingGeometry);
 
       // Load all published uploads for this project with their week_start_date
       const { data: uploads } = await supabase
@@ -236,6 +244,11 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
             className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${viewMode === 'owner' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-zinc-300 text-zinc-700 hover:bg-zinc-50'}`}>
             {viewMode === 'board' ? 'Owner View' : '← Board View'}
           </button>
+          <button onClick={() => setShowModel(true)}
+            className="px-3 py-1.5 rounded-md text-xs bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+            3D Model
+          </button>
           <button onClick={handleExportPDF} className="px-3 py-1.5 rounded-md text-xs bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors">Export PDF</button>
           <a href="/upload" className="px-3 py-1.5 rounded-md text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">+ Upload More</a>
           <a href={`/review/${uploadId}`} className="px-3 py-1.5 rounded-md text-xs bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 transition-colors">Edit</a>
@@ -305,26 +318,55 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
         })}
       </div>
 
-      {/* ── Main ── */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* 3D model panel */}
-        <div className="shrink-0 border-r border-zinc-200 bg-white overflow-hidden" style={{ width: viewMode === 'owner' ? '60%' : '240px' }}>
-          <div className="w-full h-full flex flex-col">
-            <div className="flex-1 min-h-0">
-              <Building3D highlightArea={selectedActivity?.area ?? null} highlightLevel={selectedActivity?.level ?? null} highlightTrade={selectedActivity?.trade ?? null} />
+      {/* ── 3D Model Modal ── */}
+      {showModel && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6" onClick={() => setShowModel(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ width: '80vw', height: '80vh' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200">
+              <div>
+                <h2 className="font-semibold text-zinc-900">3D Building Model</h2>
+                {selectedActivity && (
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {selectedActivity.task_name} · {TRADE_COLORS[selectedActivity.trade]?.company} · {AREA_ROWS.find(r => r.area === selectedActivity.area && (r.area_sub ?? null) === (selectedActivity.area_sub ?? null))?.label}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {projectId && (
+                  <a href={`/projects/${projectId}/model`} target="_blank"
+                    className="px-3 py-1.5 text-xs rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50">
+                    Edit Model →
+                  </a>
+                )}
+                <button onClick={() => setShowModel(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-md border border-zinc-200 text-zinc-500 hover:bg-zinc-50 text-lg leading-none">
+                  ×
+                </button>
+              </div>
             </div>
-            {selectedActivity && (
-              <div className="px-3 pb-3 text-xs border-t border-zinc-100 pt-2 bg-white">
-                <div className="font-semibold text-zinc-800 truncate">{selectedActivity.task_name}</div>
-                <div className="text-zinc-500 mt-0.5">{TRADE_COLORS[selectedActivity.trade]?.company} · {AREA_ROWS.find(r => r.area === selectedActivity.area && (r.area_sub ?? null) === (selectedActivity.area_sub ?? null))?.label}</div>
-                {selectedActivity.predecessor && <div className="text-zinc-400 italic mt-0.5 truncate">↳ {selectedActivity.predecessor}</div>}
-                <div className="text-zinc-400 mt-0.5">Crew: {selectedActivity.crew_size ?? '—'} · Dur: {selectedActivity.duration_days ?? '—'}d</div>
+            <div className="flex-1 min-h-0">
+              <Building3D
+                highlightArea={selectedActivity?.area ?? null}
+                highlightLevel={selectedActivity?.level ?? null}
+                highlightTrade={selectedActivity?.trade ?? null}
+                geometry={buildingGeometry}
+              />
+            </div>
+            {!buildingGeometry && (
+              <div className="px-5 py-2 bg-amber-50 border-t border-amber-100 text-xs text-amber-700 flex items-center justify-between">
+                <span>Using default Woonsocket geometry. Build a custom model for this project.</span>
+                {projectId && (
+                  <a href={`/projects/${projectId}/model`} className="font-medium underline">Build model →</a>
+                )}
               </div>
             )}
           </div>
         </div>
+      )}
 
-        {/* Grid */}
+      {/* ── Main ── */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Grid — full width now that model is in a modal */}
         <div className="flex-1 overflow-auto">
           {!startWeek ? (
             <div className="flex items-center justify-center h-full text-zinc-400 text-sm">

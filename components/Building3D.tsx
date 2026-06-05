@@ -1,52 +1,108 @@
 'use client';
 
-import { useRef, useState, useCallback, useEffect } from 'react';
-import { TRADE_COLORS } from '@/lib/constants';
+import { useRef, useState, useCallback } from 'react';
+import { TRADE_COLORS, AREA_COLORS } from '@/lib/constants';
 
-interface Building3DProps {
-  highlightArea: string | null;
-  highlightLevel: number | null;
-  highlightTrade: string | null;
+// ─── Geometry types ───────────────────────────────────────────────────────────
+
+export interface ZoneGeometry {
+  id: string;
+  name: string;
+  area: string;          // maps to area label (A, B, C, D, sitework, cmu, or custom)
+  floors: number;        // number of floors to stack
+  footprint: [number, number][];  // [x, z] world coordinates
 }
 
-const FOOTPRINTS: Record<string, [number, number][]> = {
-  core:  [[-20,-15],[20,-15],[30,0],[15,18],[-15,18],[-30,0]],
-  wingA: [[-30,0],[-15,18],[-27,73],[-42,73],[-55,48],[-55,0]],
-  wingB: [[15,18],[30,0],[55,0],[55,48],[42,73],[27,73]],
-  blockD:[[-16,-15],[16,-15],[16,-55],[-16,-55]],
+export interface BuildingGeometry {
+  zones: ZoneGeometry[];
+  floorHeight?: number;  // default 26
+  floorDepth?: number;   // default 24 (wall height per floor)
+  roofCapHeight?: number; // default 5
+}
+
+// ─── Woonsocket fallback geometry ─────────────────────────────────────────────
+
+const WOONSOCKET: BuildingGeometry = {
+  floorHeight: 26,
+  floorDepth: 24,
+  roofCapHeight: 5,
+  zones: [
+    {
+      id: 'core',
+      name: 'Core / Area C',
+      area: 'C',
+      floors: 4,
+      footprint: [[-20,-15],[20,-15],[30,0],[15,18],[-15,18],[-30,0]],
+    },
+    {
+      id: 'wingA',
+      name: 'Wing A',
+      area: 'A',
+      floors: 4,
+      footprint: [[-30,0],[-15,18],[-27,73],[-42,73],[-55,48],[-55,0]],
+    },
+    {
+      id: 'wingB',
+      name: 'Wing B',
+      area: 'B',
+      floors: 4,
+      footprint: [[15,18],[30,0],[55,0],[55,48],[42,73],[27,73]],
+    },
+    {
+      id: 'blockD',
+      name: 'Block D',
+      area: 'D',
+      floors: 2,
+      footprint: [[-16,-15],[16,-15],[16,-55],[-16,-55]],
+    },
+  ],
 };
 
-const LEVEL_HEIGHT = 26;
-const FLOOR_H = 24;
-const ROOF_CAP_H = 5;
-const LEVELS = 4;
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  return [
-    parseInt(h.substring(0, 2), 16),
-    parseInt(h.substring(2, 4), 16),
-    parseInt(h.substring(4, 6), 16),
-  ];
-}
-
-function lighten(hex: string, factor: number): string {
-  const [r, g, b] = hexToRgb(hex);
-  const lr = Math.min(255, Math.round(r + (255 - r) * (1 - factor)));
-  const lg = Math.min(255, Math.round(g + (255 - g) * (1 - factor)));
-  const lb = Math.min(255, Math.round(b + (255 - b) * (1 - factor)));
-  return `rgb(${lr},${lg},${lb})`;
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export default function Building3D({ highlightArea, highlightLevel, highlightTrade }: Building3DProps) {
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+function lighten(hex: string, factor: number): string {
+  const [r,g,b] = hexToRgb(hex);
+  return `rgb(${Math.min(255,Math.round(r+(255-r)*(1-factor)))},${Math.min(255,Math.round(g+(255-g)*(1-factor)))},${Math.min(255,Math.round(b+(255-b)*(1-factor)))})`;
+}
+
+// Assign a distinct color to each zone based on its area
+function zoneBaseColor(area: string): string {
+  return AREA_COLORS[area] ?? '#6080b0';
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+interface Building3DProps {
+  highlightArea: string | null;
+  highlightLevel: number | null;
+  highlightTrade: string | null;
+  geometry?: BuildingGeometry | null;
+}
+
+export default function Building3D({
+  highlightArea,
+  highlightLevel,
+  highlightTrade,
+  geometry,
+}: Building3DProps) {
+  const geo = geometry ?? WOONSOCKET;
+  const FLOOR_H   = geo.floorHeight   ?? 26;
+  const FLOOR_D   = geo.floorDepth    ?? 24;
+  const ROOF_CAP  = geo.roofCapHeight ?? 5;
+
   const [rotY, setRotY] = useState(25);
   const [rotX, setRotX] = useState(28);
-  const dragRef = useRef<{ x: number; y: number; ry: number; rx: number } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef  = useRef<{ x: number; y: number; ry: number; rx: number } | null>(null);
+  const touchRef = useRef<{ x: number; y: number; ry: number; rx: number } | null>(null);
 
   const cx = 200, cy = 200;
 
@@ -62,147 +118,98 @@ export default function Building3D({ highlightArea, highlightLevel, highlightTra
     [rotY, rotX]
   );
 
-  function getColors(zone: string, level: number, tradeHex: string | null) {
-    const isHL = highlightArea === zone && highlightLevel === level;
-    const dim = (highlightArea !== null) && !isHL;
+  function getColors(zone: ZoneGeometry, levelIdx: number) {
+    const tradeHex = highlightTrade ? (TRADE_COLORS[highlightTrade]?.hex ?? null) : null;
+    const isHL = highlightArea === zone.area && highlightLevel === levelIdx;
+    const dim  = highlightArea !== null && !isHL;
 
     if (isHL && tradeHex) {
-      return {
-        top:    lighten(tradeHex, 0.1),
-        front:  lighten(tradeHex, 0.35),
-        right:  lighten(tradeHex, 0.2),
-        stroke: tradeHex,
-        opacity: 1.0,
-      };
+      return { top: lighten(tradeHex,0.1), front: lighten(tradeHex,0.35), right: lighten(tradeHex,0.2), stroke: tradeHex, opacity: 1.0 };
     }
-    return {
-      top:    '#c8cdd8',
-      front:  '#a8adb8',
-      right:  '#b8bdc8',
-      stroke: '#9098a8',
-      opacity: dim ? 0.28 : 0.82,
-    };
+    // Use zone area color when no highlight active
+    const base = zoneBaseColor(zone.area);
+    if (!highlightArea) {
+      return { top: lighten(base,0.45), front: lighten(base,0.65), right: lighten(base,0.55), stroke: base, opacity: 0.9 };
+    }
+    return { top:'#c8cdd8', front:'#a8adb8', right:'#b8bdc8', stroke:'#9098a8', opacity: dim ? 0.22 : 0.85 };
   }
 
-  function ptsToStr(pts: [number, number][]) {
-    return pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  function ptsToStr(pts: [number,number][]) {
+    return pts.map(([x,y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   }
 
-  function drawPrisms() {
-    const tradeHex = highlightTrade ? (TRADE_COLORS[highlightTrade]?.hex ?? null) : null;
+  function drawScene() {
+    const polys: { pts: [number,number][]; fill: string; stroke: string; opacity: number; depth: number }[] = [];
 
-    const faces: { pts: [number, number][]; fill: string; stroke: string; opacity: number; z: number }[] = [];
+    for (const zone of geo.zones) {
+      const fp = zone.footprint;
+      const n  = fp.length;
 
-    const zoneAreaMap: Record<string, string> = {
-      wingA: 'A', wingB: 'B', blockD: 'D', core: 'C',
-    };
+      for (let levelIdx = 0; levelIdx < zone.floors; levelIdx++) {
+        const yBase  = levelIdx * FLOOR_H;
+        const height = levelIdx === zone.floors - 1 ? ROOF_CAP : FLOOR_D;
+        const colors = getColors(zone, levelIdx);
 
-    for (let levelIdx = 0; levelIdx < LEVELS; levelIdx++) {
-      const yBase = levelIdx * LEVEL_HEIGHT;
-      const height = levelIdx === LEVELS - 1 ? ROOF_CAP_H : FLOOR_H;
+        const topPts = fp.map(([x,z]) => project(x, yBase + height, z));
+        const botPts = fp.map(([x,z]) => project(x, yBase, z));
 
-      const drawOrder = ['blockD', 'core', 'wingA', 'wingB'];
+        // Centroid Z for depth sorting
+        const centZ = fp.reduce((s,[,z])=>s+z,0)/n;
+        const centX = fp.reduce((s,[x])=>s+x,0)/n;
+        const depthBase = centX * Math.sin(rotY*Math.PI/180) + centZ * Math.cos(rotY*Math.PI/180);
 
-      for (const zone of drawOrder) {
-        if (zone === 'blockD' && levelIdx > 1) continue;
-
-        const fp = FOOTPRINTS[zone];
-        const area = zoneAreaMap[zone];
-        const colors = getColors(area, levelIdx, tradeHex);
-
-        const topPts = fp.map(([x, z]) => project(x, yBase + height, z));
-        const botPts = fp.map(([x, z]) => project(x, yBase, z));
-        const n = fp.length;
-
-        const sideFaces: { pts: [number, number][]; isRight: boolean; dot: number }[] = [];
-        for (let i = 0; i < n; i++) {
-          const j = (i + 1) % n;
-          const nx = fp[j][1] - fp[i][1];
-          const nz = -(fp[j][0] - fp[i][0]);
-          const camX = Math.sin(rotY * Math.PI / 180);
-          const camZ = Math.cos(rotY * Math.PI / 180);
-          const dot = nx * camX + nz * camZ;
-          if (dot <= 0) continue;
-          const isRight = nx > 0 && Math.abs(nx) > Math.abs(nz) * 0.4;
-          sideFaces.push({ pts: [topPts[i], topPts[j], botPts[j], botPts[i]], isRight, dot });
+        // Side faces
+        const sideFaces: {pts:[number,number][]; isRight:boolean; dot:number}[] = [];
+        for (let i=0; i<n; i++) {
+          const j=(i+1)%n;
+          const nx=fp[j][1]-fp[i][1];
+          const nz=-(fp[j][0]-fp[i][0]);
+          const camX=Math.sin(rotY*Math.PI/180);
+          const camZ=Math.cos(rotY*Math.PI/180);
+          const dot=nx*camX+nz*camZ;
+          if (dot<=0) continue;
+          const isRight=nx>0 && Math.abs(nx)>Math.abs(nz)*0.4;
+          sideFaces.push({pts:[topPts[i],topPts[j],botPts[j],botPts[i]],isRight,dot});
         }
-
-        sideFaces.sort((a, b) => a.dot - b.dot);
+        sideFaces.sort((a,b)=>a.dot-b.dot);
         for (const sf of sideFaces) {
-          faces.push({
-            pts: sf.pts,
-            fill: sf.isRight ? colors.right : colors.front,
-            stroke: colors.stroke,
-            opacity: colors.opacity,
-            z: levelIdx,
-          });
+          polys.push({ pts:sf.pts, fill:sf.isRight?colors.right:colors.front, stroke:colors.stroke, opacity:colors.opacity, depth:depthBase-levelIdx*0.1 });
         }
         // Top face
-        faces.push({
-          pts: topPts,
-          fill: colors.top,
-          stroke: colors.stroke,
-          opacity: colors.opacity,
-          z: levelIdx + 0.5,
-        });
+        polys.push({ pts:topPts, fill:colors.top, stroke:colors.stroke, opacity:colors.opacity, depth:depthBase+levelIdx*0.1+0.5 });
       }
     }
 
-    return faces.map((f, i) => (
-      <polygon
-        key={i}
-        points={ptsToStr(f.pts)}
-        fill={f.fill}
-        stroke={f.stroke}
-        strokeWidth="0.5"
-        opacity={f.opacity}
-      />
+    // Sort back-to-front
+    polys.sort((a,b) => a.depth - b.depth);
+
+    return polys.map((p,i) => (
+      <polygon key={i} points={ptsToStr(p.pts)} fill={p.fill} stroke={p.stroke} strokeWidth="0.5" opacity={p.opacity} />
     ));
   }
 
-  function onMouseDown(e: React.MouseEvent) {
-    dragRef.current = { x: e.clientX, y: e.clientY, ry: rotY, rx: rotX };
-  }
-
+  function onMouseDown(e: React.MouseEvent) { dragRef.current = {x:e.clientX,y:e.clientY,ry:rotY,rx:rotX}; }
   function onMouseMove(e: React.MouseEvent) {
     if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.x;
-    const dy = e.clientY - dragRef.current.y;
-    setRotY(dragRef.current.ry + dx * 0.55);
-    setRotX(clamp(dragRef.current.rx - dy * 0.3, 8, 60));
+    setRotY(dragRef.current.ry+(e.clientX-dragRef.current.x)*0.55);
+    setRotX(clamp(dragRef.current.rx-(e.clientY-dragRef.current.y)*0.3,8,60));
   }
+  function onMouseUp() { dragRef.current=null; }
 
-  function onMouseUp() {
-    dragRef.current = null;
-  }
-
-  // Touch support
-  const touchRef = useRef<{ x: number; y: number; ry: number; rx: number } | null>(null);
   function onTouchStart(e: React.TouchEvent) {
-    const t = e.touches[0];
-    touchRef.current = { x: t.clientX, y: t.clientY, ry: rotY, rx: rotX };
+    const t=e.touches[0];
+    touchRef.current={x:t.clientX,y:t.clientY,ry:rotY,rx:rotX};
   }
   function onTouchMove(e: React.TouchEvent) {
     if (!touchRef.current) return;
-    const t = e.touches[0];
-    const dx = t.clientX - touchRef.current.x;
-    const dy = t.clientY - touchRef.current.y;
-    setRotY(touchRef.current.ry + dx * 0.55);
-    setRotX(clamp(touchRef.current.rx - dy * 0.3, 8, 60));
+    const t=e.touches[0];
+    setRotY(touchRef.current.ry+(t.clientX-touchRef.current.x)*0.55);
+    setRotX(clamp(touchRef.current.rx-(t.clientY-touchRef.current.y)*0.3,8,60));
   }
-  function onTouchEnd() {
-    touchRef.current = null;
-  }
-
-  // Reset to default angles on double-click
-  function onDblClick() {
-    setRotY(25);
-    setRotX(28);
-  }
+  function onTouchEnd() { touchRef.current=null; }
 
   return (
     <svg
-      ref={svgRef}
       viewBox="0 0 400 350"
       className="w-full h-full cursor-grab active:cursor-grabbing select-none"
       onMouseDown={onMouseDown}
@@ -212,11 +219,11 @@ export default function Building3D({ highlightArea, highlightLevel, highlightTra
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      onDoubleClick={onDblClick}
+      onDoubleClick={() => { setRotY(25); setRotX(28); }}
     >
-      <rect width="400" height="350" fill="#0f172a" />
-      {drawPrisms()}
-      <text x="200" y="338" textAnchor="middle" fill="#475569" fontSize="9">
+      <rect width="400" height="350" fill="#f8fafc" />
+      {drawScene()}
+      <text x="200" y="342" textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily="system-ui">
         drag to rotate · double-click to reset
       </text>
     </svg>
