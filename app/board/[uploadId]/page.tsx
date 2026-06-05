@@ -162,7 +162,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
     cellMap[rk][act.resolved_date].push(act);
   }
 
-  const tradesPresent = Array.from(new Set(allActivities.map(a => a.trade))).filter(t => t in TRADE_COLORS);
+  const tradesPresent = Array.from(new Set(allActivities.map(a => a.trade))).filter(Boolean).sort();
   const selectedActivity = allActivities.find(a => a.id === selectedId) ?? null;
 
   async function handleExportPDF() {
@@ -206,11 +206,14 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
             className="h-8 pl-3 pr-7 rounded-md border border-zinc-300 bg-white text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
           >
             <option value="">All contractors</option>
-            {tradesPresent.map(key => (
-              <option key={key} value={key}>
-                {TRADE_COLORS[key]?.company} — {TRADE_COLORS[key]?.name}
-              </option>
-            ))}
+            {tradesPresent.map(key => {
+              const t = TRADE_COLORS[key];
+              return (
+                <option key={key} value={key}>
+                  {t ? `${t.company} — ${t.name}` : key}
+                </option>
+              );
+            })}
           </select>
           {filterTrade && (
             <button
