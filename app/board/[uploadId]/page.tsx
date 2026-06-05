@@ -321,8 +321,8 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
       {/* ── Main ── */}
       <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* Grid */}
-        <div className="flex-1 overflow-auto">
+        {/* Grid + floating model panel */}
+        <div className="flex-1 overflow-auto relative">
           {!startWeek ? (
             <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
               <div className="text-center">
@@ -385,24 +385,27 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
           )}
         </div>
 
-        {/* ── 3D Model right panel ── */}
+        {/* ── 3D Model floating panel (top-right of grid) ── */}
         {showModel && (
           <div
-            className="shrink-0 flex flex-col bg-white border-l border-zinc-200"
-            style={{ width: viewMode === 'owner' ? '45%' : '300px' }}
+            className="absolute z-20 flex flex-col bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden"
+            style={{
+              top: 8,
+              right: 12,
+              width: viewMode === 'owner' ? '42%' : '300px',
+              height: viewMode === 'owner' ? '55%' : '280px',
+            }}
           >
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-100">
-              <span className="text-xs font-semibold text-zinc-700">3D Model</span>
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 bg-zinc-50 shrink-0">
+              <span className="text-[11px] font-semibold text-zinc-600">3D Model</span>
               <div className="flex items-center gap-1">
                 {projectId && (
                   <a href={`/projects/${projectId}/model`} target="_blank"
-                    className="text-[10px] text-blue-600 hover:underline px-1">
-                    Edit →
-                  </a>
+                    className="text-[10px] text-blue-600 hover:underline">Edit →</a>
                 )}
                 <button onClick={() => setShowModel(false)}
-                  className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-100 text-sm leading-none">
+                  className="w-5 h-5 flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-200 text-xs ml-1">
                   ×
                 </button>
               </div>
@@ -419,35 +422,19 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
             </div>
 
             {/* Selected task info */}
-            {selectedActivity ? (
-              <div className="px-3 py-2 border-t border-zinc-100 bg-zinc-50">
-                <div className="text-xs font-semibold text-zinc-800 truncate">{selectedActivity.task_name}</div>
-                <div className="text-[10px] text-zinc-500 mt-0.5">
-                  {TRADE_COLORS[selectedActivity.trade]?.company ?? selectedActivity.trade} ·{' '}
-                  {AREA_ROWS.find(r => r.area === selectedActivity.area && (r.area_sub ?? null) === (selectedActivity.area_sub ?? null))?.label}
-                </div>
-                {selectedActivity.predecessor && (
-                  <div className="text-[10px] text-zinc-400 italic mt-0.5 truncate">↳ {selectedActivity.predecessor}</div>
-                )}
-                <div className="text-[10px] text-zinc-400 mt-0.5">
-                  Crew: {selectedActivity.crew_size ?? '—'} · Dur: {selectedActivity.duration_days ?? '—'}d
-                </div>
-              </div>
-            ) : (
-              <div className="px-3 py-2 border-t border-zinc-100 text-[10px] text-zinc-400 text-center">
-                Click a task card to highlight it
-              </div>
-            )}
-
-            {/* Build model prompt */}
-            {!buildingGeometry && (
-              <div className="px-3 py-2 bg-amber-50 border-t border-amber-100 text-[10px] text-amber-700 flex items-center justify-between">
-                <span>Default geometry shown.</span>
-                {projectId && (
-                  <a href={`/projects/${projectId}/model`} className="font-medium underline">Build yours →</a>
-                )}
-              </div>
-            )}
+            <div className="px-3 py-1.5 border-t border-zinc-100 bg-zinc-50 shrink-0">
+              {selectedActivity ? (
+                <>
+                  <div className="text-[10px] font-semibold text-zinc-800 truncate">{selectedActivity.task_name}</div>
+                  <div className="text-[9px] text-zinc-500">
+                    {TRADE_COLORS[selectedActivity.trade]?.company ?? selectedActivity.trade} ·{' '}
+                    {AREA_ROWS.find(r => r.area === selectedActivity.area && (r.area_sub ?? null) === (selectedActivity.area_sub ?? null))?.label}
+                  </div>
+                </>
+              ) : (
+                <div className="text-[9px] text-zinc-400 text-center">Click a task to highlight</div>
+              )}
+            </div>
           </div>
         )}
 
