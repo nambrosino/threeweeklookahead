@@ -257,17 +257,18 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
       <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-1.5 flex flex-wrap gap-1.5">
         {tradesPresent.map(key => {
           const t = TRADE_COLORS[key];
+          const hex = t?.hex ?? '#6b7280';
           const active = filterTrade === key;
           return (
             <button key={key} onClick={() => setFilterTrade(prev => prev === key ? null : key)}
               className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs transition-all bg-white"
               style={{
-                border: `1px solid ${active ? t.hex : t.hex + '60'}`,
-                color: active ? t.hex : '#52525b',
-                boxShadow: active ? `0 0 0 1px ${t.hex}` : 'none',
+                border: `1px solid ${active ? hex : hex + '60'}`,
+                color: active ? hex : '#52525b',
+                boxShadow: active ? `0 0 0 1px ${hex}` : 'none',
               }}>
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: t.hex }} />
-              {t.company}
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: hex }} />
+              {t?.company ?? key}
             </button>
           );
         })}
