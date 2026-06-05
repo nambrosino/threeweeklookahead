@@ -60,6 +60,10 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   const [startWeek, setStartWeek] = useState<string>('');
   const [showWeekPicker, setShowWeekPicker] = useState(false);
   const [showModel, setShowModel] = useState(false);
+  const [modelPos, setModelPos] = useState({ x: 12, y: 8 });
+  const [modelSize, setModelSize] = useState({ w: 300, h: 280 });
+  const modelDragRef = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null);
+  const modelResizeRef = useRef<{ mx: number; my: number; ow: number; oh: number } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterTrade, setFilterTrade] = useState<string | null>(null);
   const [hiddenAreas, setHiddenAreas] = useState<Set<string>>(new Set());
@@ -385,27 +389,51 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
           )}
         </div>
 
-        {/* ── 3D Model floating panel (top-right of grid) ── */}
+        {/* ── 3D Model floating panel — draggable + resizable ── */}
         {showModel && (
           <div
-            className="absolute z-20 flex flex-col bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden"
-            style={{
-              top: 8,
-              right: 12,
-              width: viewMode === 'owner' ? '42%' : '300px',
-              height: viewMode === 'owner' ? '55%' : '280px',
+            className="absolute z-20 flex flex-col bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden select-none"
+            style={{ left: modelPos.x, top: modelPos.y, width: modelSize.w, height: modelSize.h, minWidth: 220, minHeight: 200 }}
+            onMouseMove={e => {
+              if (modelDragRef.current) {
+                const dx = e.clientX - modelDragRef.current.mx;
+                const dy = e.clientY - modelDragRef.current.my;
+                setModelPos({ x: Math.max(0, modelDragRef.current.ox + dx), y: Math.max(0, modelDragRef.current.oy + dy) });
+              }
+              if (modelResizeRef.current) {
+                const dw = e.clientX - modelResizeRef.current.mx;
+                const dh = e.clientY - modelResizeRef.current.my;
+                setModelSize({ w: Math.max(220, modelResizeRef.current.ow + dw), h: Math.max(200, modelResizeRef.current.oh + dh) });
+              }
             }}
+            onMouseUp={() => { modelDragRef.current = null; modelResizeRef.current = null; }}
+            onMouseLeave={() => { modelDragRef.current = null; modelResizeRef.current = null; }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 bg-zinc-50 shrink-0">
-              <span className="text-[11px] font-semibold text-zinc-600">3D Model</span>
+            {/* Drag handle header */}
+            <div
+              className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-100 bg-zinc-50 shrink-0 cursor-move"
+              onMouseDown={e => {
+                e.preventDefault();
+                modelDragRef.current = { mx: e.clientX, my: e.clientY, ox: modelPos.x, oy: modelPos.y };
+              }}
+            >
+              <div className="flex items-center gap-1.5">
+                <svg className="w-3 h-3 text-zinc-400" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M7 2a1 1 0 11-2 0 1 1 0 012 0zm3 0a1 1 0 11-2 0 1 1 0 012 0zM7 5a1 1 0 11-2 0 1 1 0 012 0zm3 0a1 1 0 11-2 0 1 1 0 012 0zM7 8a1 1 0 11-2 0 1 1 0 012 0zm3 0a1 1 0 11-2 0 1 1 0 012 0z"/>
+                </svg>
+                <span className="text-[11px] font-semibold text-zinc-600">3D Model</span>
+              </div>
               <div className="flex items-center gap-1">
                 {projectId && (
                   <a href={`/projects/${projectId}/model`} target="_blank"
-                    className="text-[10px] text-blue-600 hover:underline">Edit →</a>
+                    className="text-[10px] text-blue-600 hover:underline" onMouseDown={e => e.stopPropagation()}>
+                    Edit →
+                  </a>
                 )}
-                <button onClick={() => setShowModel(false)}
-                  className="w-5 h-5 flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-200 text-xs ml-1">
+                <button
+                  onMouseDown={e => e.stopPropagation()}
+                  onClick={() => setShowModel(false)}
+                  className="w-5 h-5 flex items-center justify-center rounded text-zinc-400 hover:bg-zinc-200 text-xs ml-1 cursor-pointer">
                   ×
                 </button>
               </div>
@@ -434,6 +462,20 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
               ) : (
                 <div className="text-[9px] text-zinc-400 text-center">Click a task to highlight</div>
               )}
+            </div>
+
+            {/* Resize handle — bottom-right corner */}
+            <div
+              className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize flex items-end justify-end pb-0.5 pr-0.5"
+              onMouseDown={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                modelResizeRef.current = { mx: e.clientX, my: e.clientY, ow: modelSize.w, oh: modelSize.h };
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" className="text-zinc-400">
+                <path d="M9 1L1 9M9 5L5 9M9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
             </div>
           </div>
         )}
