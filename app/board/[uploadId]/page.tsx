@@ -179,7 +179,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   }
 
   const visibleActivities = (viewMode === 'owner'
-    ? allActivities.filter(a => a.is_starred || a.is_milestone || (a.duration_days ?? 0) >= 3 || a.task_name.toLowerCase().includes('inspection'))
+    ? allActivities.filter(a => a.is_starred)
     : allActivities
   )
   .filter(a => threWeekDates.includes(a.resolved_date))
