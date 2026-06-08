@@ -185,9 +185,9 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   .filter(a => threWeekDates.includes(a.resolved_date))
   .filter(a => !filterTrade || a.trade === filterTrade);
 
-  // Activity counts per area for the 3D heat map (unfiltered by trade so heat map shows total load)
+  // Activity counts per area for the 3D heat map — mirrors exactly what's shown on the board
   const activityCounts: Record<string, number> = {};
-  for (const act of allActivities.filter(a => threWeekDates.includes(a.resolved_date))) {
+  for (const act of visibleActivities) {
     activityCounts[act.area] = (activityCounts[act.area] ?? 0) + 1;
   }
 
