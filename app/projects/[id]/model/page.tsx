@@ -34,9 +34,10 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
   const [geometry, setGeometry] = useState<BuildingGeometry>({ zones: [], floorHeight: 26, floorDepth: 24, roofCapHeight: 5 });
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
+  const [activeLevel, setActiveLevel] = useState<number | 'default'>('default'); // which level footprint to edit
   const [drawingPoints, setDrawingPoints] = useState<[number,number][]>([]); // world coords
   const [isDrawing, setIsDrawing] = useState(false);
-  const [dragPt, setDragPt] = useState<{zoneId:string; ptIdx:number} | null>(null);
+  const [dragPt, setDragPt] = useState<{zoneId:string; ptIdx:number; level: number|'default'} | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState('');
@@ -137,11 +138,17 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
       const [fpx, fpy] = worldToPx(fx, fz);
       const [cpx, cpy] = worldToPx(wx, wz);
       if (Math.hypot(cpx - fpx, cpy - fpy) < 12) {
-        // Close and commit
-        updateZone(activeZoneId, { footprint: drawingPoints });
+        // Close and commit to the right slot
+        if (activeLevel === 'default') {
+          updateZone(activeZoneId, { footprint: drawingPoints });
+        } else {
+          const zone = geometry.zones.find(z => z.id === activeZoneId);
+          const lf = { ...(zone?.levelFootprints ?? {}), [activeLevel]: drawingPoints };
+          updateZone(activeZoneId, { levelFootprints: lf });
+        }
         setDrawingPoints([]);
         setIsDrawing(false);
-        showToast('Zone drawn — adjust points by dragging, or draw another zone');
+        showToast(activeLevel === 'default' ? 'Default footprint saved' : `Level ${activeLevel} footprint saved`);
         return;
       }
     }
@@ -149,9 +156,9 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
   }
 
   // Drag existing point
-  const onPtMouseDown = useCallback((e: React.MouseEvent, zoneId: string, ptIdx: number) => {
+  const onPtMouseDown = useCallback((e: React.MouseEvent, zoneId: string, ptIdx: number, level: number | 'default') => {
     e.stopPropagation();
-    setDragPt({ zoneId, ptIdx });
+    setDragPt({ zoneId, ptIdx, level });
   }, []);
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
@@ -161,9 +168,16 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
       ...g,
       zones: g.zones.map(z => {
         if (z.id !== dragPt.zoneId) return z;
-        const fp = [...z.footprint];
-        fp[dragPt.ptIdx] = [wx, wz];
-        return { ...z, footprint: fp };
+        if (dragPt.level === 'default') {
+          const fp = [...z.footprint];
+          fp[dragPt.ptIdx] = [wx, wz];
+          return { ...z, footprint: fp };
+        } else {
+          const existing = z.levelFootprints?.[dragPt.level] ?? z.footprint;
+          const fp = [...existing];
+          fp[dragPt.ptIdx] = [wx, wz];
+          return { ...z, levelFootprints: { ...(z.levelFootprints ?? {}), [dragPt.level]: fp } };
+        }
       }),
     }));
   }
@@ -286,13 +300,48 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
                         className="w-full h-7 text-xs rounded border border-zinc-300 bg-white px-2 focus:outline-none focus:ring-1 focus:ring-blue-600" />
                     </div>
                   </div>
-                  <div className="mt-2 text-xs text-zinc-400">
-                    {zone.footprint.length} points
-                    {isActive && zone.footprint.length > 0 && (
-                      <button onClick={e => { e.stopPropagation(); setIsDrawing(true); setDrawingPoints([]); updateZone(zone.id, { footprint: [] }); }}
-                        className="ml-2 text-blue-600 hover:underline">Redraw</button>
-                    )}
-                  </div>
+                  {/* Per-level footprint selector */}
+                  {isActive && (
+                    <div className="mt-2" onClick={e => e.stopPropagation()}>
+                      <label className="text-xs text-zinc-400 block mb-1">Editing footprint for:</label>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          onClick={() => setActiveLevel('default')}
+                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${activeLevel === 'default' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-zinc-600 border-zinc-300 hover:bg-zinc-50'}`}>
+                          All floors
+                        </button>
+                        {Array.from({ length: zone.floors }, (_, i) => (
+                          <button key={i}
+                            onClick={() => setActiveLevel(i)}
+                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${activeLevel === i ? 'bg-blue-600 text-white border-blue-600' : (zone.levelFootprints?.[i] ? 'bg-green-50 text-green-700 border-green-300' : 'bg-white text-zinc-600 border-zinc-300 hover:bg-zinc-50')}`}>
+                            L{i + 1}{zone.levelFootprints?.[i] ? ' ✓' : ''}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] text-zinc-400">
+                          {(activeLevel === 'default' ? zone.footprint : (zone.levelFootprints?.[activeLevel as number] ?? zone.footprint)).length} pts
+                        </span>
+                        <button onClick={() => {
+                          setIsDrawing(true);
+                          setDrawingPoints([]);
+                          if (activeLevel === 'default') updateZone(zone.id, { footprint: [] });
+                          else {
+                            const lf = { ...(zone.levelFootprints ?? {}) };
+                            delete lf[activeLevel as number];
+                            updateZone(zone.id, { levelFootprints: lf });
+                          }
+                        }} className="text-[10px] text-blue-600 hover:underline">Redraw</button>
+                        {activeLevel !== 'default' && zone.levelFootprints?.[activeLevel as number] && (
+                          <button onClick={() => {
+                            const lf = { ...(zone.levelFootprints ?? {}) };
+                            delete lf[activeLevel as number];
+                            updateZone(zone.id, { levelFootprints: lf });
+                          }} className="text-[10px] text-red-500 hover:underline">Clear level</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -374,22 +423,47 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
                 {/* Drawn zones */}
                 {geometry.zones.map((zone, zi) => {
                   const color = ZONE_PALETTE[zi % ZONE_PALETTE.length];
-                  const pts = zone.footprint.map(([wx,wz]) => worldToPx(wx,wz));
-                  if (pts.length === 0) return null;
-                  const pStr = pts.map(([x,y])=>`${x},${y}`).join(' ');
                   const isActive = activeZoneId === zone.id;
+
+                  // Show active-level footprint when this zone is selected, else default
+                  const displayFp = isActive && activeLevel !== 'default'
+                    ? (zone.levelFootprints?.[activeLevel as number] ?? zone.footprint)
+                    : zone.footprint;
+                  const pts = displayFp.map(([wx,wz]) => worldToPx(wx,wz));
+
+                  // Also show ghost of other level footprints
+                  const levelPtSets = isActive && zone.levelFootprints
+                    ? Object.entries(zone.levelFootprints)
+                        .filter(([l]) => parseInt(l) !== (activeLevel === 'default' ? -1 : activeLevel as number))
+                        .map(([l, fp]) => ({ level: parseInt(l), pts: fp.map(([wx,wz]) => worldToPx(wx,wz)) }))
+                    : [];
+
+                  if (pts.length === 0 && levelPtSets.length === 0) return null;
+                  const pStr = pts.map(([x,y])=>`${x},${y}`).join(' ');
+                  const levelLabel = isActive && activeLevel !== 'default' ? ` (L${(activeLevel as number)+1})` : '';
+
                   return (
                     <g key={zone.id}>
-                      <polygon points={pStr} fill={color} fillOpacity={isActive ? 0.25 : 0.15}
-                        stroke={color} strokeWidth={isActive ? 2 : 1.5} strokeOpacity={0.8} />
+                      {/* Ghost level footprints */}
+                      {levelPtSets.map(({ level, pts: lpts }) => (
+                        <polygon key={level}
+                          points={lpts.map(([x,y])=>`${x},${y}`).join(' ')}
+                          fill={color} fillOpacity={0.05}
+                          stroke={color} strokeWidth={1} strokeOpacity={0.3} strokeDasharray="4 3" />
+                      ))}
+                      {/* Main footprint */}
+                      {pts.length > 0 && (
+                        <polygon points={pStr} fill={color} fillOpacity={isActive ? 0.25 : 0.15}
+                          stroke={color} strokeWidth={isActive ? 2 : 1.5} strokeOpacity={0.8} />
+                      )}
                       {/* Vertex handles */}
                       {pts.map(([px,py], pi) => (
                         <circle key={pi} cx={px} cy={py} r={isActive ? 6 : 4}
                           fill={color} stroke="white" strokeWidth="1.5"
                           className="cursor-move"
-                          onMouseDown={e => onPtMouseDown(e, zone.id, pi)} />
+                          onMouseDown={e => onPtMouseDown(e, zone.id, pi, isActive ? activeLevel : 'default')} />
                       ))}
-                      {/* Zone label at centroid */}
+                      {/* Zone label */}
                       {pts.length > 0 && (
                         <text
                           x={pts.reduce((s,[x])=>s+x,0)/pts.length}
@@ -397,7 +471,7 @@ export default function ModelEditorPage({ params }: { params: Promise<{ id: stri
                           textAnchor="middle" dominantBaseline="middle"
                           fill={color} fontSize="11" fontWeight="600" fontFamily="system-ui"
                           style={{pointerEvents:'none',userSelect:'none'}}>
-                          {zone.name}
+                          {zone.name}{levelLabel}
                         </text>
                       )}
                     </g>

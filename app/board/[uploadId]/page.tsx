@@ -64,6 +64,26 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   const [modelSize, setModelSize] = useState({ w: 300, h: 280 });
   const modelDragRef = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null);
   const modelResizeRef = useRef<{ mx: number; my: number; ow: number; oh: number } | null>(null);
+
+  // Use document-level listeners so drag/resize works at any mouse speed
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (modelDragRef.current) {
+        const dx = e.clientX - modelDragRef.current.mx;
+        const dy = e.clientY - modelDragRef.current.my;
+        setModelPos({ x: Math.max(0, modelDragRef.current.ox + dx), y: Math.max(0, modelDragRef.current.oy + dy) });
+      }
+      if (modelResizeRef.current) {
+        const dw = e.clientX - modelResizeRef.current.mx;
+        const dh = e.clientY - modelResizeRef.current.my;
+        setModelSize({ w: Math.max(220, modelResizeRef.current.ow + dw), h: Math.max(200, modelResizeRef.current.oh + dh) });
+      }
+    }
+    function onUp() { modelDragRef.current = null; modelResizeRef.current = null; }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterTrade, setFilterTrade] = useState<string | null>(null);
   const [hiddenAreas, setHiddenAreas] = useState<Set<string>>(new Set());
@@ -394,20 +414,6 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
           <div
             className="absolute z-20 flex flex-col bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden select-none"
             style={{ left: modelPos.x, top: modelPos.y, width: modelSize.w, height: modelSize.h, minWidth: 220, minHeight: 200 }}
-            onMouseMove={e => {
-              if (modelDragRef.current) {
-                const dx = e.clientX - modelDragRef.current.mx;
-                const dy = e.clientY - modelDragRef.current.my;
-                setModelPos({ x: Math.max(0, modelDragRef.current.ox + dx), y: Math.max(0, modelDragRef.current.oy + dy) });
-              }
-              if (modelResizeRef.current) {
-                const dw = e.clientX - modelResizeRef.current.mx;
-                const dh = e.clientY - modelResizeRef.current.my;
-                setModelSize({ w: Math.max(220, modelResizeRef.current.ow + dw), h: Math.max(200, modelResizeRef.current.oh + dh) });
-              }
-            }}
-            onMouseUp={() => { modelDragRef.current = null; modelResizeRef.current = null; }}
-            onMouseLeave={() => { modelDragRef.current = null; modelResizeRef.current = null; }}
           >
             {/* Drag handle header */}
             <div

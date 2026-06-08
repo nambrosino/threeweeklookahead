@@ -10,7 +10,8 @@ export interface ZoneGeometry {
   name: string;
   area: string;          // maps to area label (A, B, C, D, sitework, cmu, or custom)
   floors: number;        // number of floors to stack
-  footprint: [number, number][];  // [x, z] world coordinates
+  footprint: [number, number][];              // default footprint for all levels
+  levelFootprints?: { [level: number]: [number, number][] }; // per-level overrides
 }
 
 export interface BuildingGeometry {
@@ -119,19 +120,19 @@ export default function Building3D({
   );
 
   function getColors(zone: ZoneGeometry, levelIdx: number) {
-    const tradeHex = highlightTrade ? (TRADE_COLORS[highlightTrade]?.hex ?? null) : null;
     const isHL = highlightArea === zone.area && highlightLevel === levelIdx;
     const dim  = highlightArea !== null && !isHL;
 
-    if (isHL && tradeHex) {
-      return { top: lighten(tradeHex,0.1), front: lighten(tradeHex,0.35), right: lighten(tradeHex,0.2), stroke: tradeHex, opacity: 1.0 };
+    if (isHL) {
+      // Bright red highlight — always visible regardless of trade
+      return { top: '#ff4444', front: '#cc1111', right: '#ee2222', stroke: '#bb0000', opacity: 1.0 };
     }
     // Use zone area color when no highlight active
     const base = zoneBaseColor(zone.area);
     if (!highlightArea) {
       return { top: lighten(base,0.45), front: lighten(base,0.65), right: lighten(base,0.55), stroke: base, opacity: 0.9 };
     }
-    return { top:'#c8cdd8', front:'#a8adb8', right:'#b8bdc8', stroke:'#9098a8', opacity: dim ? 0.22 : 0.85 };
+    return { top:'#d4d8e0', front:'#b8bcc8', right:'#c8ccd4', stroke:'#9098a8', opacity: dim ? 0.18 : 0.85 };
   }
 
   function ptsToStr(pts: [number,number][]) {
@@ -142,10 +143,11 @@ export default function Building3D({
     const polys: { pts: [number,number][]; fill: string; stroke: string; opacity: number; depth: number }[] = [];
 
     for (const zone of geo.zones) {
-      const fp = zone.footprint;
-      const n  = fp.length;
-
       for (let levelIdx = 0; levelIdx < zone.floors; levelIdx++) {
+        // Use per-level footprint if defined, else fall back to the default
+        const fp = zone.levelFootprints?.[levelIdx] ?? zone.footprint;
+        const n  = fp.length;
+        if (n < 3) continue;
         const yBase  = levelIdx * FLOOR_H;
         const height = levelIdx === zone.floors - 1 ? ROOF_CAP : FLOOR_D;
         const colors = getColors(zone, levelIdx);
