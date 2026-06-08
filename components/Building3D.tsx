@@ -87,6 +87,7 @@ interface Building3DProps {
   highlightLevel: number | null;
   highlightTrade: string | null;
   geometry?: BuildingGeometry | null;
+  activityCounts?: Record<string, number>; // area key → count in current 3-week window
 }
 
 export default function Building3D({
@@ -94,6 +95,7 @@ export default function Building3D({
   highlightLevel,
   highlightTrade,
   geometry,
+  activityCounts,
 }: Building3DProps) {
   const geo = geometry ?? WOONSOCKET;
   const FLOOR_H   = geo.floorHeight   ?? 26;
@@ -119,20 +121,41 @@ export default function Building3D({
     [rotY, rotX]
   );
 
+  function heatColor(area: string): { top: string; front: string; right: string; stroke: string } | null {
+    if (!activityCounts) return null;
+    const count = activityCounts[area] ?? 0;
+    if (count === 0) return null;
+    if (count <= 5)  return { top: '#fef08a', front: '#ca8a04', right: '#fde047', stroke: '#a16207' }; // yellow
+    if (count <= 10) return { top: '#fed7aa', front: '#c2410c', right: '#fb923c', stroke: '#9a3412' }; // orange
+    return           { top: '#fca5a5', front: '#b91c1c', right: '#f87171', stroke: '#991b1b' };        // red
+  }
+
   function getColors(zone: ZoneGeometry, levelIdx: number) {
     const isHL = highlightArea === zone.area && highlightLevel === levelIdx;
     const dim  = highlightArea !== null && !isHL;
 
+    // Task selected — bright red on selected zone, dim others
     if (isHL) {
-      // Bright red highlight — always visible regardless of trade
       return { top: '#ff4444', front: '#cc1111', right: '#ee2222', stroke: '#bb0000', opacity: 1.0 };
     }
-    // Use zone area color when no highlight active
-    const base = zoneBaseColor(zone.area);
+    if (dim) {
+      return { top:'#d4d8e0', front:'#b8bcc8', right:'#c8ccd4', stroke:'#9098a8', opacity: 0.18 };
+    }
+
+    // No task selected — show activity heat map if counts provided
     if (!highlightArea) {
+      const heat = heatColor(zone.area);
+      if (heat) return { ...heat, opacity: 0.95 };
+      // No activities in this area — neutral gray
+      if (activityCounts) {
+        return { top:'#e2e8f0', front:'#cbd5e1', right:'#d8e0ea', stroke:'#94a3b8', opacity: 0.7 };
+      }
+      // No counts provided — use zone area color
+      const base = zoneBaseColor(zone.area);
       return { top: lighten(base,0.45), front: lighten(base,0.65), right: lighten(base,0.55), stroke: base, opacity: 0.9 };
     }
-    return { top:'#d4d8e0', front:'#b8bcc8', right:'#c8ccd4', stroke:'#9098a8', opacity: dim ? 0.18 : 0.85 };
+
+    return { top:'#d4d8e0', front:'#b8bcc8', right:'#c8ccd4', stroke:'#9098a8', opacity: 0.85 };
   }
 
   function ptsToStr(pts: [number,number][]) {

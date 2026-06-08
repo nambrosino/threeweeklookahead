@@ -185,6 +185,12 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   .filter(a => threWeekDates.includes(a.resolved_date))
   .filter(a => !filterTrade || a.trade === filterTrade);
 
+  // Activity counts per area for the 3D heat map (unfiltered by trade so heat map shows total load)
+  const activityCounts: Record<string, number> = {};
+  for (const act of allActivities.filter(a => threWeekDates.includes(a.resolved_date))) {
+    activityCounts[act.area] = (activityCounts[act.area] ?? 0) + 1;
+  }
+
   // Cell lookup: rowKey → date → activities[]
   const cellMap: Record<string, Record<string, DatedActivity[]>> = {};
   for (const act of visibleActivities) {
@@ -452,10 +458,11 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
                 highlightLevel={selectedActivity?.level ?? null}
                 highlightTrade={selectedActivity?.trade ?? null}
                 geometry={buildingGeometry}
+                activityCounts={selectedActivity ? undefined : activityCounts}
               />
             </div>
 
-            {/* Selected task info */}
+            {/* Footer: task info or heat map legend */}
             <div className="px-3 py-1.5 border-t border-zinc-100 bg-zinc-50 shrink-0">
               {selectedActivity ? (
                 <>
@@ -466,7 +473,19 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
                   </div>
                 </>
               ) : (
-                <div className="text-[9px] text-zinc-400 text-center">Click a task to highlight</div>
+                <div className="flex items-center gap-2 justify-center">
+                  <span className="text-[9px] text-zinc-400">Activity load:</span>
+                  {[
+                    { color: '#fde047', label: '1–5' },
+                    { color: '#fb923c', label: '6–10' },
+                    { color: '#f87171', label: '11+' },
+                  ].map(({ color, label }) => (
+                    <span key={label} className="flex items-center gap-0.5">
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: color }} />
+                      <span className="text-[9px] text-zinc-500">{label}</span>
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
 
