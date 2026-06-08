@@ -61,7 +61,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
   const [showWeekPicker, setShowWeekPicker] = useState(false);
   const [showModel, setShowModel] = useState(false);
   const [modelPos, setModelPos] = useState({ x: 12, y: 8 });
-  const [modelSize, setModelSize] = useState({ w: 300, h: 280 });
+  const [modelSize, setModelSize] = useState({ w: 420, h: 380 });
   const modelDragRef = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null);
   const modelResizeRef = useRef<{ mx: number; my: number; ow: number; oh: number } | null>(null);
 
@@ -419,7 +419,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
         {showModel && (
           <div
             className="absolute z-20 flex flex-col bg-white border border-zinc-200 rounded-xl shadow-xl overflow-hidden select-none"
-            style={{ left: modelPos.x, top: modelPos.y, width: modelSize.w, height: modelSize.h, minWidth: 220, minHeight: 200 }}
+            style={{ left: modelPos.x, top: modelPos.y, width: modelSize.w, height: modelSize.h, minWidth: 260, minHeight: 240 }}
           >
             {/* Drag handle header */}
             <div

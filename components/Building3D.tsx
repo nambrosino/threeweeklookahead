@@ -235,7 +235,7 @@ export default function Building3D({
 
   return (
     <svg
-      viewBox="0 0 400 350"
+      viewBox="60 30 280 260"
       className="w-full h-full cursor-grab active:cursor-grabbing select-none"
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
@@ -246,11 +246,8 @@ export default function Building3D({
       onTouchEnd={onTouchEnd}
       onDoubleClick={() => { setRotY(25); setRotX(28); }}
     >
-      <rect width="400" height="350" fill="#f8fafc" />
+      <rect x="60" y="30" width="280" height="260" fill="#f8fafc" />
       {drawScene()}
-      <text x="200" y="342" textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily="system-ui">
-        drag to rotate · double-click to reset
-      </text>
     </svg>
   );
 }
