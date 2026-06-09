@@ -8,7 +8,7 @@ export async function visionComplete(prompt: string, base64Image: string, mimeTy
       'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://threeweeklookahead.netlify.app',
-      'X-Title': 'DOC Pull Plan',
+      'X-Title': '3 Week Lookahead',
     },
     body: JSON.stringify({
       model: MODEL,

@@ -232,7 +232,7 @@ export default function BoardPage({ params }: { params: Promise<{ uploadId: stri
       {/* ── Header ── */}
       <div className="shrink-0 bg-white border-b border-zinc-200 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-zinc-900 text-sm">DOC Pull Plan</span>
+          <span className="font-bold text-zinc-900 text-sm">3 Week Lookahead</span>
           <button
             onClick={() => setShowWeekPicker(v => !v)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-50 border border-zinc-300 rounded-md text-xs text-zinc-700 transition-colors"

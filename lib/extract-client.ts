@@ -40,7 +40,7 @@ async function callVision(prompt: string, base64: string, mimeType: string): Pro
       'Authorization': `Bearer ${getOpenRouterKey()}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://threeweeklookahead.netlify.app',
-      'X-Title': 'DOC Pull Plan',
+      'X-Title': '3 Week Lookahead',
     },
     body: JSON.stringify({
       model: MODEL,

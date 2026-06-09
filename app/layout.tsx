@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DOC Pull Plan",
+  title: "3 Week Lookahead",
   description: "Construction schedule management for DOC superintendents",
 };
 
